@@ -1,7 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { MessageSquare } from 'lucide-react'
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 type UserProfile = {
   id: string
@@ -24,13 +28,13 @@ export default async function MessagesInboxPage() {
     .eq('id', session.user.id)
     .single()
 
-  // Show list of all admins/masters to contact (excluding self)
+  // Show list of all admins/masters to contact (including self for testing '내게 쓰기')
   let adminUsers: UserProfile[] = []
-  const { data: fetchAdmins } = await supabase
+  const adminClient = createAdminClient()
+  const { data: fetchAdmins } = await adminClient
     .from('profiles')
     .select('id, display_name, avatar_url, role')
     .in('role', ['master', 'admin'])
-    .neq('id', session.user.id)
     .order('role', { ascending: false }) // master first
 
   if (fetchAdmins) adminUsers = fetchAdmins as UserProfile[]
@@ -110,6 +114,9 @@ export default async function MessagesInboxPage() {
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold text-slate-900 group-hover:text-emerald-600 transition-colors truncate">
                       {conv.user.display_name}
+                      {conv.user.id === session.user.id && (
+                        <span className="ml-1 text-emerald-500 text-xs font-bold">(나)</span>
+                      )}
                     </h3>
                     {conv.user.role && conv.user.role !== 'user' && conv.user.role !== 'guest' && (
                        <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-bold ${

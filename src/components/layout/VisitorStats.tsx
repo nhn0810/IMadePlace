@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Users } from 'lucide-react'
 
 export function VisitorStats() {
-  const [stats, setStats] = useState({ today: 12, total: 1402 }) // Initial fallback skeleton
+  const [stats, setStats] = useState({ today: 0, total: 0 }) // Initial fallback skeleton
 
   useEffect(() => {
     async function fetchAndIncrement() {
@@ -15,7 +15,7 @@ export function VisitorStats() {
         const hasVisitedToday = localStorage.getItem(visitKey)
 
         const res = await fetch(`/api/visitors?increment=${!hasVisitedToday}`)
-        
+
         if (res.ok) {
           const data = await res.json()
           setStats({ today: data.today, total: data.total })
@@ -27,7 +27,7 @@ export function VisitorStats() {
         console.error('Visitor stat error', e)
       }
     }
-    
+
     fetchAndIncrement()
   }, [])
 

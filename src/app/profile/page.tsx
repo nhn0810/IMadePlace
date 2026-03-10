@@ -4,6 +4,9 @@ import Link from 'next/link'
 import { MessageSquare, LayoutList, LogOut, Settings } from 'lucide-react'
 import { PostList } from '@/components/board/PostList'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function ProfilePage({ searchParams }: { searchParams: { tab?: string } }) {
   const supabase = await createClient()
 

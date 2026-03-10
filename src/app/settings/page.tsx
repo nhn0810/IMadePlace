@@ -4,6 +4,9 @@ import Link from 'next/link'
 import { ArrowLeft, UserX, AlertTriangle, ShieldCheck, Settings } from 'lucide-react'
 import { revalidatePath } from 'next/cache'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function SettingsPage() {
   const supabase = await createClient()
 

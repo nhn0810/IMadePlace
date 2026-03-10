@@ -4,6 +4,9 @@ import { ChatRoom } from '@/components/messages/ChatRoom'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function DMPage({ params }: { params: { userId: string } }) {
   const resolvedParams = await params
   const { userId } = resolvedParams
