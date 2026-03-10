@@ -26,7 +26,7 @@ export default function WritePostPage() {
         router.push('/login')
         return
       }
-      const { data: profile } = await supabase.from('profiles').select('id, role').eq('id', session.user.id).single()
+      const { data: profile } = await supabase.from('profiles').select('id, role, banned_until').eq('id', session.user.id).single()
       setUser(profile)
       
       // Basic client side role check
@@ -43,6 +43,19 @@ export default function WritePostPage() {
     if (!title.trim() || !content.trim()) return
     
     setIsSubmitting(true)
+    
+    if (user?.banned_until && new Date(user.banned_until) > new Date()) {
+      const banDate = new Date(user.banned_until).toLocaleString('ko-KR', {
+         year: 'numeric',
+         month: 'long',
+         day: 'numeric',
+         hour: '2-digit',
+         minute: '2-digit'
+      })
+      alert(`${banDate}까지 글쓰기 권한이 정지되었습니다. 운영자에게 문의해주세요.`)
+      setIsSubmitting(false)
+      return
+    }
     
     // Status can only be changed by admin/master, default to waiting
     let finalStatus = 'waiting'

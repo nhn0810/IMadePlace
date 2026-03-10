@@ -39,7 +39,7 @@ export default async function PostDetailPage({ params }: { params: { category: s
   let profile = null
   let isLikedByMe = false
   if (session) {
-    const { data: p } = await supabase.from('profiles').select('id, role').eq('id', session.user.id).single()
+    const { data: p } = await supabase.from('profiles').select('id, role, banned_until').eq('id', session.user.id).single()
     profile = p
     
     // Check if liked

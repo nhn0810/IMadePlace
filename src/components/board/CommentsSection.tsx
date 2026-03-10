@@ -34,6 +34,19 @@ export function CommentsSection({ postId, currentUser }: { postId: string, curre
     if (!newComment.trim() || !currentUser || currentUser.role === 'guest') return
     
     setIsSubmitting(true)
+
+    if (currentUser?.banned_until && new Date(currentUser.banned_until) > new Date()) {
+      const banDate = new Date(currentUser.banned_until).toLocaleString('ko-KR', {
+         year: 'numeric',
+         month: 'long',
+         day: 'numeric',
+         hour: '2-digit',
+         minute: '2-digit'
+      })
+      alert(`${banDate}까지 글쓰기 권한이 정지되었습니다. 운영자에게 문의해주세요.`)
+      setIsSubmitting(false)
+      return
+    }
     
     const { error } = await supabase.from('comments').insert({
       post_id: postId,

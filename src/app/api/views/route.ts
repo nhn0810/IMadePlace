@@ -9,10 +9,9 @@ export async function POST(request: Request) {
     if (!postId) return NextResponse.json({ error: 'Missing postId' }, { status: 400 })
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY! // For simplicity if service role isn't available
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY! // Use service role to bypass RLS for views
     
-    // We create a standard client since we don't have the service role key in our mock env. 
-    // In a real prod setup, use SUPABASE_SERVICE_ROLE_KEY here to bypass RLS.
+    // Create standard supabase-js client to bypass RLS tracking
     const supabase = createClient(supabaseUrl, supabaseKey)
     
     // Get current view_count
