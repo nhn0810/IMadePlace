@@ -1,4 +1,4 @@
--- 1. Create Notifications Table
+-- 1. Create Notifications Table (Safe if exists)
 CREATE TABLE IF NOT EXISTS public.notifications (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE, -- NULL means global announcement
@@ -12,6 +12,11 @@ CREATE TABLE IF NOT EXISTS public.notifications (
 
 -- 2. Enable Row Level Security
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies to prevent "already exists" errors when re-running
+DROP POLICY IF EXISTS "Users can view their own notifications and global ones" ON public.notifications;
+DROP POLICY IF EXISTS "Admins can insert global announcements" ON public.notifications;
+DROP POLICY IF EXISTS "Users can update their own notifications" ON public.notifications;
 
 -- Users can read notifications addressed to them, OR global announcements (user_id IS NULL)
 CREATE POLICY "Users can view their own notifications and global ones"
@@ -34,7 +39,7 @@ CREATE POLICY "Admins can insert global announcements"
 CREATE POLICY "Users can update their own notifications"
   ON public.notifications
   FOR UPDATE
-  USING (user_id = auth.uid() OR user_id IS NULL); -- We track read status via client side state for globals or via a separate mapping, but for simplicity we let them UPDATE if it's theirs
+  USING (user_id = auth.uid() OR user_id IS NULL); 
 
 -- 3. Enable Realtime
 -- First check if publication exists, otherwise create it
@@ -49,8 +54,20 @@ END
 $$;
 
 -- Add relevant tables to the publication so WebSockets receive changes
-ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+-- We use a DO block to safely add without failing if it's already there
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 -- 4. DB Trigger: Auto-create notification on new DM
 CREATE OR REPLACE FUNCTION public.handle_new_message_notification()

@@ -31,7 +31,7 @@ export default async function MessagesInboxPage() {
   const { data: messages } = await supabase
     .from('messages')
     .select(`
-      sender_id, receiver_id, content, created_at,
+      sender_id, receiver_id, content, created_at, is_read,
       sender:sender_id(id, display_name, avatar_url, role),
       receiver:receiver_id(id, display_name, avatar_url, role)
     `)
@@ -45,8 +45,13 @@ export default async function MessagesInboxPage() {
       conversantsMap.set(other.id, {
         user: other,
         lastMessage: msg.content,
-        time: msg.created_at
+        time: msg.created_at,
+        unreadCount: 0
       })
+    }
+    
+    if (!msg.is_read && msg.receiver_id === session.user.id) {
+       conversantsMap.get(other.id).unreadCount += 1
     }
   })
 
@@ -105,9 +110,16 @@ export default async function MessagesInboxPage() {
                     {conv.lastMessage === '새로운 대화 시작하기' ? '' : new Date(conv.time).toLocaleDateString()}
                   </span>
                 </div>
-                <p className={`text-sm truncate ${conv.lastMessage === '새로운 대화 시작하기' ? 'text-emerald-500 font-medium' : 'text-slate-500'}`}>
-                  {conv.lastMessage}
-                </p>
+                <div className="flex justify-between items-center gap-2 mt-1">
+                  <p className={`text-sm truncate flex-1 min-w-0 ${conv.lastMessage === '새로운 대화 시작하기' ? 'text-emerald-500 font-medium' : 'text-slate-500'}`}>
+                    {conv.lastMessage}
+                  </p>
+                  {conv.unreadCount > 0 && (
+                    <span className="bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0">
+                      {conv.unreadCount}
+                    </span>
+                  )}
+                </div>
               </div>
             </Link>
           ))}

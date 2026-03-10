@@ -23,6 +23,14 @@ export default async function DMPage({ params }: { params: { userId: string } })
     redirect('/messages')
   }
 
+  // Auto-mark messages from this user as read
+  await supabase
+    .from('messages')
+    .update({ is_read: true })
+    .eq('receiver_id', session.user.id)
+    .eq('sender_id', userId)
+    .eq('is_read', false)
+
   // Fetch target user 
   const { data: otherUser } = await supabase
     .from('profiles')

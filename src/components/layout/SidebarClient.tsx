@@ -57,11 +57,11 @@ export function SidebarClient({ profile }: { profile: any }) {
             <p className="text-sm text-slate-500 font-medium">개인 포스팅 플랫폼</p>
           </Link>
 
-          <div className="mb-4 flex items-center gap-2 flex-wrap">
+          <div className="mb-4 flex items-start gap-2 flex-wrap">
             <div className="flex-1 min-w-0">
               <AuthButton user={profile} />
             </div>
-            <div className="hidden md:block flex-shrink-0 static z-[100]">
+            <div className="hidden md:block flex-shrink-0 static z-[100] -mt-1.5 pt-1.5">
                {profile && <NotificationBell userId={profile.id} />}
             </div>
           </div>

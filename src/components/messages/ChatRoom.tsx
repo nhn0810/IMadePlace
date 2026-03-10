@@ -149,7 +149,6 @@ export function ChatRoom({ currentUserId, otherUserId, isBlockedByMe, isBlockedB
               placeholder="메시지를 입력하세요 (한국어)..."
               className="w-full bg-slate-100 border-none px-4 py-3.5 pr-14 rounded-full focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-medium text-slate-800"
               autoComplete="off"
-              disabled={isSending}
             />
             <button
               type="submit"
