@@ -89,7 +89,7 @@ export async function Sidebar() {
         </div>
 
         <Link
-          href="/messages"
+          href="/developers"
           className="mt-4 w-full flex items-center justify-center gap-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 py-3 px-4 rounded-xl font-semibold transition-colors text-sm border border-emerald-100/50"
         >
           <MessageCircle className="w-4 h-4" />

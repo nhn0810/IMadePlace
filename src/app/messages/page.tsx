@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { MessageSquare } from 'lucide-react'
@@ -28,17 +27,6 @@ export default async function MessagesInboxPage() {
     .eq('id', session.user.id)
     .single()
 
-  // Show list of all admins/masters to contact (including self for testing '내게 쓰기')
-  let adminUsers: UserProfile[] = []
-  const adminClient = createAdminClient()
-  const { data: fetchAdmins } = await adminClient
-    .from('profiles')
-    .select('id, display_name, avatar_url, role')
-    .in('role', ['master', 'admin'])
-    .order('role', { ascending: false }) // master first
-
-  if (fetchAdmins) adminUsers = fetchAdmins as UserProfile[]
-
   // Fetch recent conversations for everyone
   const { data: messages } = await supabase
     .from('messages')
@@ -61,19 +49,6 @@ export default async function MessagesInboxPage() {
       })
     }
   })
-
-  // Merge admin list and existing conversations
-  if (adminUsers.length > 0) {
-    adminUsers.forEach((admin: UserProfile) => {
-      if (!conversantsMap.has(admin.id)) {
-        conversantsMap.set(admin.id, {
-          user: admin,
-          lastMessage: '새로운 대화 시작하기',
-          time: new Date().toISOString() // Put at bottom or top depending on sort
-        })
-      }
-    })
-  }
 
   const conversations = Array.from(conversantsMap.values()).sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
 
