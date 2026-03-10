@@ -27,7 +27,7 @@ export function SidebarClient({ profile }: { profile: any }) {
         Mobile Top bar 
         Visible only on small screens < md
       */}
-      <div className="md:hidden sticky top-0 z-40 bg-white/90 backdrop-blur-xl border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm w-full">
+      <div className="md:hidden sticky top-0 z-50 bg-white/90 backdrop-blur-xl border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm w-full">
         <Link href="/" className="flex items-baseline gap-1" onClick={closeMenu}>
           <h1 className="text-xl font-black tracking-tight text-slate-900">Make Place.</h1>
         </Link>
@@ -45,28 +45,30 @@ export function SidebarClient({ profile }: { profile: any }) {
         Desktop: Fixed sidebar 
       */}
       <aside className={`
-        fixed inset-0 top-[60px] z-30 bg-white md:bg-white/50 md:backdrop-blur-xl 
+        fixed inset-0 top-[60px] z-[45] bg-white md:bg-white/50 md:backdrop-blur-xl 
         md:static md:w-64 md:border-r md:border-slate-200 md:h-screen md:sticky md:top-0 
-        flex flex-col p-6 overflow-y-auto transition-transform duration-300 ease-in-out
+        flex flex-col transition-transform duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
-        <div className="flex-1 flex flex-col outline-none">
-          {/* Desktop Logo (Hidden on mobile) */}
+        {/* Desktop Header Area (No overflow to allow Notification dropdown) */}
+        <div className="p-6 pb-2 flex-shrink-0">
           <Link href="/" className="hidden md:block mb-8">
             <h1 className="text-2xl font-black tracking-tight text-slate-900">Make Place.</h1>
             <p className="text-sm text-slate-500 font-medium">개인 포스팅 플랫폼</p>
           </Link>
 
-          {/* Desktop Bell & Auth */}
           <div className="mb-4 flex items-center gap-2 flex-wrap">
             <div className="flex-1 min-w-0">
               <AuthButton user={profile} />
             </div>
-            <div className="hidden md:block flex-shrink-0">
+            <div className="hidden md:block flex-shrink-0 static z-[100]">
                {profile && <NotificationBell userId={profile.id} />}
             </div>
           </div>
+        </div>
 
+        {/* Scrollable Nav Area */}
+        <div className="flex-1 overflow-y-auto px-6 pb-6 outline-none flex flex-col">
           <nav className="flex-1 space-y-2 mt-4">
             {navItems.map((item) => {
               const Icon = item.icon
@@ -92,7 +94,7 @@ export function SidebarClient({ profile }: { profile: any }) {
           </nav>
 
           {/* Messages & Admin Links */}
-          <div className="mt-8 space-y-3">
+          <div className="mt-8 space-y-3 flex-shrink-0">
             {profile && (
               <Link
                 href="/messages"
@@ -125,10 +127,9 @@ export function SidebarClient({ profile }: { profile: any }) {
             </Link>
           </div>
 
-          <div className="mt-6 pt-6 border-t border-slate-200">
+          <div className="mt-6 pt-6 border-t border-slate-200 flex-shrink-0">
             <VisitorStats />
           </div>
-
         </div>
       </aside>
     </>

@@ -83,7 +83,7 @@ export function SearchInput({
   const buttonSizeClasses = isCompact ? 'px-6 py-2.5' : 'px-8 py-4 text-lg'
 
   return (
-    <div className={`sticky top-6 z-40 transition-all duration-300 w-full max-w-3xl mx-auto
+    <div className={`sticky top-6 z-20 transition-all duration-300 w-full max-w-3xl mx-auto
                      ${isCompact ? 'mt-0 mb-6' : 'mt-10 mb-12'}`}>
       <form 
         onSubmit={handleSearch}
