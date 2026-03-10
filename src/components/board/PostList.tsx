@@ -27,7 +27,7 @@ export function PostList({ posts, category }: { posts: any[], category: string }
     <div className="space-y-6">
       {posts.map((post) => (
         <article key={post.id} className="group bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-md hover:border-emerald-200 transition-all">
-          <Link href={`/board/${category}/${post.id}`} className="block">
+          <Link href={`/board/${post.category || category}/${post.id}`} className="block">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden flex-shrink-0">
