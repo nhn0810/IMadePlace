@@ -44,7 +44,13 @@ export function ChatRoom({ currentUserId, otherUserId, isBlockedByMe, isBlockedB
         },
         (payload) => {
           if (payload.eventType === 'INSERT' && payload.new.sender_id === otherUserId) {
-            setMessages((prev) => [...prev, payload.new])
+            setMessages((prev) => {
+              if (prev.find(m => m.id === payload.new.id)) return prev
+              return [...prev, payload.new]
+            })
+            if (markAsReadAction) {
+              markAsReadAction().catch(console.error)
+            }
           } else if (payload.eventType === 'UPDATE') {
             setMessages((prev) => prev.map(m => m.id === payload.new.id ? payload.new : m))
           }
@@ -162,7 +168,10 @@ export function ChatRoom({ currentUserId, otherUserId, isBlockedByMe, isBlockedB
       alert('Failed to send message')
       setNewMessage(content) 
     } else if (data) {
-      setMessages(prev => [...prev, data])
+      setMessages(prev => {
+        if (prev.find(m => m.id === data.id)) return prev
+        return [...prev, data]
+      })
       triggerNotification(currentUserId, otherUserId, content)
     }
 
