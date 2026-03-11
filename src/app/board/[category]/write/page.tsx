@@ -143,9 +143,8 @@ export default function WritePostPage() {
       recruitment_end_date: recruitmentDate || null,
     })
 
-    setIsSubmitting(false)
-
     if (error) {
+      setIsSubmitting(false)
       alert('게시글 등록 중 오류가 발생했습니다: ' + error.message)
     } else {
       router.push(`/board/${category}`)
@@ -359,14 +358,14 @@ export default function WritePostPage() {
           <button
             type="button"
             onClick={() => router.back()}
-            className="px-6 py-2.5 rounded-full text-slate-500 hover:bg-slate-100 font-medium mr-3 transition-colors"
+            className="px-6 py-2.5 rounded-full text-slate-500 hover:bg-slate-100 font-medium mr-3 transition-all active:scale-95"
           >
             취소
           </button>
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-6 py-2.5 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium flex items-center gap-2 transition-colors disabled:opacity-50"
+            className="px-6 py-2.5 rounded-full bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-medium flex items-center gap-2 transition-all disabled:opacity-50 disabled:active:scale-100"
           >
             {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
             등록하기

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { BlockData } from './types'
-import { Plus, GripVertical, X, Image as ImageIcon, Type, LayoutTemplate, PieChart, Upload, Calendar, Bold, Italic, Heading2, Palette } from 'lucide-react'
+import { Plus, GripVertical, X, Image as ImageIcon, Type, LayoutTemplate, PieChart, Upload, Calendar, Bold, Italic, Heading2, Palette, Loader2 } from 'lucide-react'
 import { CSS } from '@dnd-kit/utilities'
 import { useSortable } from '@dnd-kit/sortable'
 import { uploadImage } from '@/lib/supabase/storage'
@@ -178,9 +178,12 @@ function TextBlock({ content, onChange }: { content: string, onChange: (v: strin
 }
 
 function VerticalImageBlock({ content, onChange }: { content: string[], onChange: (v: string[]) => void }) {
+  const [isUploading, setIsUploading] = useState(false)
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
-    if (!files) return
+    if (!files || files.length === 0) return
+    setIsUploading(true)
     const urls = [...content]
     
     for (let i = 0; i < files.length; i++) {
@@ -189,6 +192,7 @@ function VerticalImageBlock({ content, onChange }: { content: string[], onChange
         if (url) urls.push(url)
     }
     onChange(urls)
+    setIsUploading(false)
   }
 
   const removeImage = (index: number) => {
@@ -199,10 +203,10 @@ function VerticalImageBlock({ content, onChange }: { content: string[], onChange
     <div className="flex flex-col gap-4">
        <div className="flex items-center justify-between">
            <span className="text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><LayoutTemplate className="w-4 h-4" /> 수직 이미지</span>
-           <label className="cursor-pointer bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 px-4 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center gap-2">
-              <Upload className="w-4 h-4" />
-              이미지 추가
-              <input type="file" multiple accept="image/*" className="hidden" onChange={handleUpload}/>
+           <label className={`cursor-pointer bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 px-4 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center gap-2 ${isUploading ? 'opacity-50 pointer-events-none' : 'active:scale-95'}`}>
+              {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              {isUploading ? '업로드 중...' : '이미지 추가'}
+              <input type="file" multiple accept="image/*" className="hidden" disabled={isUploading} onChange={handleUpload}/>
            </label>
        </div>
        <div className="flex flex-col gap-4">
@@ -224,9 +228,12 @@ function VerticalImageBlock({ content, onChange }: { content: string[], onChange
 }
 
 function SwipeImageBlock({ content, onChange }: { content: string[], onChange: (v: string[]) => void }) {
+  const [isUploading, setIsUploading] = useState(false)
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
-    if (!files) return
+    if (!files || files.length === 0) return
+    setIsUploading(true)
     const urls = [...content]
     for (let i = 0; i < files.length; i++) {
         if (files[i].size > 5 * 1024 * 1024) continue
@@ -234,6 +241,7 @@ function SwipeImageBlock({ content, onChange }: { content: string[], onChange: (
         if (url) urls.push(url)
     }
     onChange(urls)
+    setIsUploading(false)
   }
 
   const removeImage = (index: number) => {
@@ -244,10 +252,10 @@ function SwipeImageBlock({ content, onChange }: { content: string[], onChange: (
     <div className="flex flex-col gap-4">
        <div className="flex items-center justify-between">
            <span className="text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><ImageIcon className="w-4 h-4" /> 스와이프 이미지</span>
-           <label className="cursor-pointer bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 px-4 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center gap-2">
-              <Upload className="w-4 h-4" />
-              이미지 추가
-              <input type="file" multiple accept="image/*" className="hidden" onChange={handleUpload}/>
+           <label className={`cursor-pointer bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 px-4 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center gap-2 ${isUploading ? 'opacity-50 pointer-events-none' : 'active:scale-95'}`}>
+              {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              {isUploading ? '업로드 중...' : '이미지 추가'}
+              <input type="file" multiple accept="image/*" className="hidden" disabled={isUploading} onChange={handleUpload}/>
            </label>
        </div>
        <div className="flex flex-nowrap overflow-x-auto gap-4 snap-x pb-4">
