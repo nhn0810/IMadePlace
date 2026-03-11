@@ -265,73 +265,75 @@ export default function WritePostPage() {
         </div>
 
         {/* Collaborators Section */}
-        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-          <label className="block text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
-            <UserPlus className="w-4 h-4 text-emerald-500" />
-            공동 작성자 (선택)
-          </label>
-          <div className="flex flex-wrap gap-2 mb-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-100/50 text-emerald-800 rounded-full border border-emerald-200/50 text-sm font-medium">
-               <div className="w-5 h-5 rounded-full bg-emerald-200 overflow-hidden flex items-center justify-center flex-shrink-0">
-                 {user.avatar_url ? <img src={user.avatar_url} className="w-full h-full object-cover"/> : user.display_name?.[0]}
-               </div>
-               {user.display_name} (나)
-            </div>
-            {collaborators.map(c => (
-              <div key={c.id} className="flex items-center gap-2 px-3 py-1.5 bg-white text-slate-700 rounded-full border border-slate-200 shadow-sm text-sm font-medium">
-                <div className="w-5 h-5 rounded-full bg-slate-200 overflow-hidden flex items-center justify-center flex-shrink-0 text-xs">
-                 {c.avatar_url ? <img src={c.avatar_url} className="w-full h-full object-cover"/> : c.display_name?.[0]}
-                </div>
-                {c.display_name}
-                <button type="button" onClick={() => removeCollaborator(c.id)} className="text-slate-400 hover:text-rose-500 transition-colors ml-1 p-0.5 rounded-full hover:bg-rose-50">
-                  <X className="w-3 h-3" />
-                </button>
+        {category === 'imade' && (
+          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+            <label className="block text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
+              <UserPlus className="w-4 h-4 text-emerald-500" />
+              공동 작성자 (선택)
+            </label>
+            <div className="flex flex-wrap gap-2 mb-3">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-100/50 text-emerald-800 rounded-full border border-emerald-200/50 text-sm font-medium">
+                 <div className="w-5 h-5 rounded-full bg-emerald-200 overflow-hidden flex items-center justify-center flex-shrink-0">
+                   {user.avatar_url ? <img src={user.avatar_url} className="w-full h-full object-cover"/> : user.display_name?.[0]}
+                 </div>
+                 {user.display_name} (나)
               </div>
-            ))}
-          </div>
-
-          <div className="relative" ref={searchRef}>
-            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-              <Search className="h-4 w-4 text-slate-400" />
-            </div>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
-              placeholder="추가할 사용자의 이름을 검색하세요..."
-            />
-            {isSearching && (
-              <div className="absolute right-3 top-2.5">
-                <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
-              </div>
-            )}
-            
-            {/* Search Results Dropdown */}
-            {searchResults.length > 0 && searchQuery.trim().length >= 2 && (
-              <div className="absolute top-full mt-2 left-0 right-0 bg-white rounded-xl shadow-lg border border-slate-100 z-50 overflow-hidden max-h-60 overflow-y-auto">
-                {searchResults.map(result => (
-                  <button
-                    key={result.id}
-                    type="button"
-                    onClick={() => addCollaborator(result)}
-                    className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-slate-50 border-b last:border-0 border-slate-50 transition-colors"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden flex-shrink-0">
-                      {result.avatar_url ? <img src={result.avatar_url} className="w-full h-full object-cover"/> : <span className="flex items-center justify-center h-full text-xs font-bold text-slate-500">{result.display_name?.[0]}</span>}
-                    </div>
-                    <div>
-                      <div className="font-medium text-slate-900 text-sm">{result.display_name}</div>
-                      {result.role !== 'user' && result.role !== 'guest' && (
-                        <div className="text-[10px] text-slate-500 uppercase">{result.role === 'master' ? '운영자' : '개발자'}</div>
-                      )}
-                    </div>
+              {collaborators.map(c => (
+                <div key={c.id} className="flex items-center gap-2 px-3 py-1.5 bg-white text-slate-700 rounded-full border border-slate-200 shadow-sm text-sm font-medium">
+                  <div className="w-5 h-5 rounded-full bg-slate-200 overflow-hidden flex items-center justify-center flex-shrink-0 text-xs">
+                   {c.avatar_url ? <img src={c.avatar_url} className="w-full h-full object-cover"/> : c.display_name?.[0]}
+                  </div>
+                  {c.display_name}
+                  <button type="button" onClick={() => removeCollaborator(c.id)} className="text-slate-400 hover:text-rose-500 transition-colors ml-1 p-0.5 rounded-full hover:bg-rose-50">
+                    <X className="w-3 h-3" />
                   </button>
-                ))}
+                </div>
+              ))}
+            </div>
+
+            <div className="relative" ref={searchRef}>
+              <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                <Search className="h-4 w-4 text-slate-400" />
               </div>
-            )}
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
+                placeholder="추가할 사용자의 이름을 검색하세요..."
+              />
+              {isSearching && (
+                <div className="absolute right-3 top-2.5">
+                  <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                </div>
+              )}
+              
+              {/* Search Results Dropdown */}
+              {searchResults.length > 0 && searchQuery.trim().length >= 2 && (
+                <div className="absolute top-full mt-2 left-0 right-0 bg-white rounded-xl shadow-lg border border-slate-100 z-50 overflow-hidden max-h-60 overflow-y-auto">
+                  {searchResults.map(result => (
+                    <button
+                      key={result.id}
+                      type="button"
+                      onClick={() => addCollaborator(result)}
+                      className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-slate-50 border-b last:border-0 border-slate-50 transition-colors"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden flex-shrink-0">
+                        {result.avatar_url ? <img src={result.avatar_url} className="w-full h-full object-cover"/> : <span className="flex items-center justify-center h-full text-xs font-bold text-slate-500">{result.display_name?.[0]}</span>}
+                      </div>
+                      <div>
+                        <div className="font-medium text-slate-900 text-sm">{result.display_name}</div>
+                        {result.role !== 'user' && result.role !== 'guest' && (
+                          <div className="text-[10px] text-slate-500 uppercase">{result.role === 'master' ? '운영자' : '개발자'}</div>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {category === 'youmake' && isAdmin && (
           <div>
