@@ -254,7 +254,7 @@ export default async function PostDetailPage({ params }: { params: { category: s
 
       {/* Post Content */}
       <div className="mb-12">
-        <BlockRenderer content={post.content} />
+        <BlockRenderer content={post.content} postId={post.id} />
       </div>
       
       {/* Participate Button */}

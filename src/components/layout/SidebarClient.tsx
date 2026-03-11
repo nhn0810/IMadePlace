@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { AuthButton } from './AuthButton'
 import { VisitorStats } from './VisitorStats'
 import { NotificationBell } from './NotificationBell'
-import { PenTool, Target, Compass, MessageCircle, ShieldAlert, Menu, X } from 'lucide-react'
+import { PenTool, Target, Compass, MessageCircle, ShieldAlert, Menu, X, FolderKanban } from 'lucide-react'
 
 // Since AuthButton and VisitorStats might be server components or have async behavior,
 // we receive profile data from the parent layout where this Client component will be mounted.
@@ -96,14 +96,24 @@ export function SidebarClient({ profile }: { profile: any }) {
           {/* Messages & Admin Links */}
           <div className="mt-8 space-y-3 flex-shrink-0">
             {profile && (
-              <Link
-                href="/messages"
-                onClick={closeMenu}
-                className="flex items-center justify-center gap-2 w-full py-2.5 bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 rounded-xl text-xs font-bold transition-colors"
-              >
-                <MessageCircle className="w-4 h-4" />
-                Direct Messages
-              </Link>
+              <>
+                <Link
+                  href="/my-projects"
+                  onClick={closeMenu}
+                  className="flex items-center justify-center gap-2 w-full py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold transition-colors"
+                >
+                  <FolderKanban className="w-4 h-4" />
+                  나의 프로젝트 목록 관리
+                </Link>
+                <Link
+                  href="/messages"
+                  onClick={closeMenu}
+                  className="flex items-center justify-center gap-2 w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-colors"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  Direct Messages
+                </Link>
+              </>
             )}
 
             {profile && (profile.role === 'master' || profile.role === 'admin') && (

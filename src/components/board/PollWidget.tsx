@@ -54,7 +54,8 @@ export function PollWidget({ postId, blockId, poll }: PollWidgetProps) {
   }
 
   async function handleVote(optionId: string) {
-    if (isClosed || isVoting) return
+    // Lock vote if closed, currently voting, or already voted
+    if (isClosed || isVoting || myVote) return
     const { data: { session } } = await supabase.auth.getSession()
     
     if (!session) {
@@ -64,41 +65,22 @@ export function PollWidget({ postId, blockId, poll }: PollWidgetProps) {
 
     setIsVoting(true)
     
-    if (myVote === optionId) {
-      // Toggle off
-      await supabase.from('poll_votes')
-        .delete()
-        .eq('post_id', postId)
-        .eq('block_id', blockId)
-        .eq('user_id', session.user.id)
-      setMyVote(null)
-      setVotes(prev => prev.filter(v => v.user_id !== session.user.id))
+    // Only insert new vote since changing/canceling is disabled
+    const { error } = await supabase.from('poll_votes').insert({
+      post_id: postId,
+      block_id: blockId,
+      option_id: optionId,
+      user_id: session.user.id
+    })
+    
+    if (!error) {
+      setMyVote(optionId)
+      setVotes(prev => [
+        ...prev, 
+        { option_id: optionId, user_id: session.user.id }
+      ])
     } else {
-      // Vote/Change Vote
-      if (myVote) {
-         await supabase.from('poll_votes')
-          .delete()
-          .eq('post_id', postId)
-          .eq('block_id', blockId)
-          .eq('user_id', session.user.id)
-      }
-      
-      const { error } = await supabase.from('poll_votes').insert({
-        post_id: postId,
-        block_id: blockId,
-        option_id: optionId,
-        user_id: session.user.id
-      })
-      
-      if (!error) {
-        setMyVote(optionId)
-        setVotes(prev => [
-          ...prev.filter(v => v.user_id !== session.user.id), 
-          { option_id: optionId, user_id: session.user.id }
-        ])
-      } else {
-        alert('투표 중 오류가 발생했습니다.')
-      }
+      alert('투표 중 오류가 발생했습니다.')
     }
     
     setIsVoting(false)
@@ -135,19 +117,19 @@ export function PollWidget({ postId, blockId, poll }: PollWidgetProps) {
           {poll.options?.map((opt) => {
             const isSelected = myVote === opt.id
             const percentage = getPercentage(opt.id)
-            const showResults = myVote !== null || isClosed
+            const showResults = true // Always show results bar chart
             
             return (
               <button 
                 key={opt.id} 
                 onClick={() => handleVote(opt.id)}
-                disabled={isClosed || isVoting}
+                disabled={isClosed || isVoting || myVote !== null}
                 className={`text-left px-5 py-4 w-full relative overflow-hidden transition-all rounded-xl font-medium shadow-sm border
                   ${isSelected 
                     ? 'border-emerald-500 bg-emerald-50 text-emerald-900 ring-1 ring-emerald-500' 
                     : 'border-slate-200 bg-white hover:border-emerald-300 text-slate-700'
                   }
-                  ${isClosed ? 'cursor-default opacity-80' : 'cursor-pointer hover:shadow-md'}
+                  ${(isClosed || myVote !== null) ? 'cursor-default opacity-90' : 'cursor-pointer hover:shadow-md'}
                 `}
               >
                 {/* Result Bar */}
@@ -175,7 +157,7 @@ export function PollWidget({ postId, blockId, poll }: PollWidgetProps) {
       
       <div className="text-center text-xs text-slate-500 mt-6 font-medium">
         {totalVotes}명 참여 
-        {myVote && !isClosed && ' • 항목을 다시 클릭하여 투표 취소 또는 다른 항목으로 변경 가능'}
+        {myVote && !isClosed && ' • 투표가 완료되었습니다 (선택 변경 불가)'}
       </div>
     </div>
   )
