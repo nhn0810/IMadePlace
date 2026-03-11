@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { MessageSquare } from 'lucide-react'
 import { subDays, formatISO } from 'date-fns'
+import { revalidatePath } from 'next/cache'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -15,6 +16,9 @@ type UserProfile = {
 }
 
 export default async function MessagesInboxPage() {
+  // Break cache aggressively for inbox badges
+  revalidatePath('/messages')
+
   const supabase = await createClient()
 
   const { data: { session } } = await supabase.auth.getSession()

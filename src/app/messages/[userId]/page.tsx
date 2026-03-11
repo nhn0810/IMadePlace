@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation'
 import { ChatRoom } from '@/components/messages/ChatRoom'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
+import { revalidatePath } from 'next/cache'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -34,6 +35,8 @@ export default async function DMPage({ params }: { params: { userId: string } })
     .eq('receiver_id', session.user.id)
     .eq('sender_id', userId)
     .eq('is_read', false)
+
+  revalidatePath('/messages')
 
   // Fetch target user 
   const { data: otherUser } = await supabase

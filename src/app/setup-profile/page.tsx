@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
+import { revalidatePath } from 'next/cache'
 
 export default async function SetupProfilePage() {
   const supabase = await createClient()
@@ -58,7 +59,7 @@ export default async function SetupProfilePage() {
       cookieStore.delete('temp_auto_login_consent')
     }
 
-    import('next/cache').then(m => m.revalidatePath('/', 'layout'))
+    revalidatePath('/', 'layout')
     redirect('/')
   }
 

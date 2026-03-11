@@ -14,6 +14,7 @@ type Notification = {
   is_read: boolean
   created_at: string
   sender_id: string | null
+  user_id: string | null
 }
 
 export function NotificationBell({ userId }: { userId: string }) {
@@ -25,38 +26,40 @@ export function NotificationBell({ userId }: { userId: string }) {
   useEffect(() => {
     fetchNotifications()
 
-    // 🔔 Listen for NEW notifications targeting this user or global (user_id is null)
+    // 🔔 Listen for ALL changes on notifications table and filter client-side
     const channel = supabase
       .channel('notifications_channel')
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*', // Listen to INSERT, UPDATE, DELETE
           schema: 'public',
           table: 'notifications',
-          filter: `user_id=eq.${userId}` // We also need to listen for user_id is null, unfortunately Supabase filters don't support OR natively in realtime. So we listen to all inserts and filter client side.
         },
         (payload) => {
-          setNotifications(prev => {
+          if (payload.eventType === 'INSERT') {
             const newNotif = payload.new as Notification
-            if (newNotif.type === 'message') {
-              // Remove old unread message notifications from the same sender
-              return [newNotif, ...prev.filter(n => !(n.type === 'message' && n.sender_id === newNotif.sender_id))]
+            // Only process if it belongs to this user or is global
+            if (newNotif.user_id === userId || newNotif.user_id === null) {
+              setNotifications(prev => {
+                if (newNotif.type === 'message') {
+                  return [newNotif, ...prev.filter(n => !(n.type === 'message' && n.sender_id === newNotif.sender_id))]
+                }
+                return [newNotif, ...prev]
+              })
             }
-            return [newNotif, ...prev]
-          })
-        }
-      )
-      .on( // Global announcements
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=is.null` 
-        },
-        (payload) => {
-          setNotifications(prev => [payload.new as Notification, ...prev])
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedNotif = payload.new as Notification
+            if (updatedNotif.user_id === userId || updatedNotif.user_id === null) {
+               // If marked as read externally, remove from our local unread list
+               if (updatedNotif.is_read) {
+                 setNotifications(prev => prev.filter(n => n.id !== updatedNotif.id))
+               }
+            }
+          } else if (payload.eventType === 'DELETE') {
+             const oldNotif = payload.old as { id: string }
+             setNotifications(prev => prev.filter(n => n.id !== oldNotif.id))
+          }
         }
       )
       .subscribe()
@@ -95,11 +98,10 @@ export function NotificationBell({ userId }: { userId: string }) {
   }
 
   async function markAsRead(id: string) {
-    // Optimistic UI update
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n))
+    // Optimistically remove from UI
+    setNotifications(prev => prev.filter(n => n.id !== id))
     
-    // We only update if it belongs to the user or if we track reads differently, 
-    // but based on our simple policy, they can update it.
+    // Update DB
     await supabase.from('notifications').update({ is_read: true }).eq('id', id)
   }
 
@@ -142,9 +144,7 @@ export function NotificationBell({ userId }: { userId: string }) {
                         if (!notification.is_read) markAsRead(notification.id)
                         setIsOpen(false)
                     }}
-                    className={`block p-4 border-b last:border-0 border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer ${
-                      notification.is_read ? 'opacity-60' : 'bg-emerald-50/30'
-                    }`}
+                    className={`block p-4 border-b last:border-0 border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer bg-emerald-50/30`}
                   >
                     {notification.link ? (
                       <Link href={notification.link} className="block w-full h-full">
