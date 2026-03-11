@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Editor } from '@/components/board/Editor'
 import { Loader2, UserPlus, X, Search } from 'lucide-react'
+import { useClickOutside } from '@/hooks/useClickOutside'
 
 type Profile = { id: string; display_name: string; avatar_url: string; role: string }
 
@@ -28,6 +29,11 @@ export default function WritePostPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<Profile[]>([])
   const [isSearching, setIsSearching] = useState(false)
+  const searchRef = useRef<HTMLDivElement>(null)
+
+  useClickOutside(searchRef, () => {
+    setSearchResults([]) // Close dropdown on outside click
+  })
 
   const supabase = createClient()
 
@@ -165,25 +171,16 @@ export default function WritePostPage() {
           <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-5">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-3">태그 (선택 필수)</label>
-              <div className="flex flex-wrap gap-2">
+              <select
+                value={postType}
+                onChange={(e) => setPostType(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white transition-all font-medium text-slate-700 shadow-sm"
+              >
+                <option value="" disabled>어떤 글인지 선택해주세요</option>
                 {['제작기', '결과', '계획', '도움요청'].map(tag => (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => setPostType(tag)}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                      postType === tag 
-                        ? tag === '제작기' ? 'bg-amber-100 text-amber-800 border-amber-200 border'
-                        : tag === '결과' ? 'bg-emerald-100 text-emerald-800 border-emerald-200 border'
-                        : tag === '계획' ? 'bg-slate-200 text-slate-800 border-slate-300 border'
-                        : 'bg-rose-100 text-rose-800 border-rose-200 border'
-                        : 'bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    {tag}
-                  </button>
+                  <option key={tag} value={tag}>{tag}</option>
                 ))}
-              </div>
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">설명할 프로젝트명 (선택)</label>
@@ -202,22 +199,15 @@ export default function WritePostPage() {
           <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-5">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-3">글 종류 (선택 필수)</label>
-              <div className="flex flex-wrap gap-2">
-                {['이건 어때?', '같이 하자'].map(tag => (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => setPostType(tag)}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                      postType === tag 
-                        ? 'bg-emerald-100 text-emerald-800 border-emerald-200 border shadow-sm'
-                        : 'bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    {tag === '이건 어때?' ? '💡 아이디어 제안 (이건 어때?)' : '🤝 프로젝트 모집 (같이 하자)'}
-                  </button>
-                ))}
-              </div>
+              <select
+                value={postType}
+                onChange={(e) => setPostType(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white transition-all font-medium text-slate-700 shadow-sm"
+              >
+                <option value="" disabled>어떤 글인지 선택해주세요</option>
+                <option value="이건 어때?">💡 아이디어 제안 (이건 어때?)</option>
+                <option value="같이 하자">🤝 프로젝트 모집 (같이 하자)</option>
+              </select>
             </div>
 
             {postType === '같이 하자' && (
@@ -286,7 +276,7 @@ export default function WritePostPage() {
             ))}
           </div>
 
-          <div className="relative">
+          <div className="relative" ref={searchRef}>
             <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-slate-400" />
             </div>

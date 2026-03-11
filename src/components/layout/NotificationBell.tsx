@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Bell } from 'lucide-react'
+import { Bell, X } from 'lucide-react'
 import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
+import { useClickOutside } from '@/hooks/useClickOutside'
 
 type Notification = {
   id: string
@@ -20,8 +21,13 @@ type Notification = {
 export function NotificationBell({ userId }: { userId: string }) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [isOpen, setIsOpen] = useState(false)
+  const bellRef = useRef<HTMLDivElement>(null)
   
   const supabase = createClient()
+
+  useClickOutside(bellRef, () => {
+    if (isOpen) setIsOpen(false)
+  })
 
   useEffect(() => {
     fetchNotifications()
@@ -105,10 +111,19 @@ export function NotificationBell({ userId }: { userId: string }) {
     await supabase.from('notifications').update({ is_read: true }).eq('id', id)
   }
 
+  async function deleteNotification(id: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    e.preventDefault()
+    // Optimistically remove
+    setNotifications(prev => prev.filter(n => n.id !== id))
+    // Update DB
+    await supabase.from('notifications').delete().eq('id', id)
+  }
+
   const unreadCount = notifications.filter(n => !n.is_read).length
 
   return (
-    <div className="relative">
+    <div className="relative" ref={bellRef}>
       <button 
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-full transition-colors"
@@ -144,10 +159,17 @@ export function NotificationBell({ userId }: { userId: string }) {
                         if (!notification.is_read) markAsRead(notification.id)
                         setIsOpen(false)
                     }}
-                    className={`block p-4 border-b last:border-0 border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer bg-emerald-50/30`}
+                    className={`block p-4 border-b last:border-0 border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer bg-emerald-50/30 relative group`}
                   >
+                    <button
+                      onClick={(e) => deleteNotification(notification.id, e)}
+                      className="absolute top-3 right-3 p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 z-10"
+                      title="알림 지우기"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                     {notification.link ? (
-                      <Link href={notification.link} className="block w-full h-full">
+                      <Link href={notification.link} className="block w-full h-full pr-6">
                          <div className="text-sm text-slate-800 font-medium mb-1">
                            {notification.type === 'announcement' ? '📢 공지사항' : '💬 새 메시지'}
                          </div>
@@ -157,7 +179,7 @@ export function NotificationBell({ userId }: { userId: string }) {
                          </div>
                       </Link>
                     ) : (
-                      <div>
+                      <div className="pr-6">
                          <div className="text-sm text-slate-800 font-medium mb-1">
                            {notification.type === 'announcement' ? '📢 공지사항' : '🔔 알림'}
                          </div>
