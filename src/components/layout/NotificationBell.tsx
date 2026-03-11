@@ -13,6 +13,7 @@ type Notification = {
   link: string | null
   is_read: boolean
   created_at: string
+  sender_id: string | null
 }
 
 export function NotificationBell({ userId }: { userId: string }) {
@@ -36,7 +37,14 @@ export function NotificationBell({ userId }: { userId: string }) {
           filter: `user_id=eq.${userId}` // We also need to listen for user_id is null, unfortunately Supabase filters don't support OR natively in realtime. So we listen to all inserts and filter client side.
         },
         (payload) => {
-          setNotifications(prev => [payload.new as Notification, ...prev])
+          setNotifications(prev => {
+            const newNotif = payload.new as Notification
+            if (newNotif.type === 'message') {
+              // Remove old unread message notifications from the same sender
+              return [newNotif, ...prev.filter(n => !(n.type === 'message' && n.sender_id === newNotif.sender_id))]
+            }
+            return [newNotif, ...prev]
+          })
         }
       )
       .on( // Global announcements
@@ -67,7 +75,22 @@ export function NotificationBell({ userId }: { userId: string }) {
       .limit(20)
 
     if (data) {
-      setNotifications(data)
+      // Filter the initial fetch to only keep the most recent message notification per sender
+      const grouped: Notification[] = []
+      const seenSenders = new Set()
+      
+      data.forEach(n => {
+        if (n.type === 'message') {
+          if (!seenSenders.has(n.sender_id)) {
+            grouped.push(n)
+            seenSenders.add(n.sender_id)
+          }
+        } else {
+          grouped.push(n)
+        }
+      })
+      
+      setNotifications(grouped)
     }
   }
 

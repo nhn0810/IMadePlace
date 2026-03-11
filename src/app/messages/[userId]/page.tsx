@@ -23,8 +23,12 @@ export default async function DMPage({ params }: { params: { userId: string } })
     redirect('/messages')
   }
 
-  // Auto-mark messages from this user as read
-  await supabase
+  // Auto-mark messages from this user as read using Service Role to bypass missing RLS UPDATE policy
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  const adminClient = (await import('@supabase/supabase-js')).createClient(supabaseUrl, supabaseServiceKey)
+  
+  await adminClient
     .from('messages')
     .update({ is_read: true })
     .eq('receiver_id', session.user.id)

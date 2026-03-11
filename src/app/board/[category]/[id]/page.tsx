@@ -34,6 +34,16 @@ export default async function PostDetailPage({ params }: { params: { category: s
     notFound()
   }
 
+  // Fetch collaborators if any
+  let collaborators: any[] = []
+  if (post.collaborator_ids && post.collaborator_ids.length > 0) {
+    const { data: collabData } = await supabase
+      .from('profiles')
+      .select('id, display_name, avatar_url, role')
+      .in('id', post.collaborator_ids)
+    if (collabData) collaborators = collabData
+  }
+
   // Get current user auth
   const { data: { session } } = await supabase.auth.getSession()
   let profile = null
@@ -116,24 +126,46 @@ export default async function PostDetailPage({ params }: { params: { category: s
         </h1>
 
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-slate-200 overflow-hidden flex-shrink-0">
-              {post.profiles?.avatar_url ? (
-                <img src={post.profiles.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-lg">
-                  {post.profiles?.display_name?.[0]?.toUpperCase() || 'U'}
-                </div>
-              )}
-            </div>
-            <div>
-              <div className="font-semibold text-slate-900">{post.profiles?.display_name || 'Anonymous'}</div>
-              <div className="flex items-center gap-2 text-sm text-slate-400 mt-0.5">
-                <Clock className="w-3.5 h-3.5" />
-                <span>{new Date(post.created_at).toLocaleDateString()}</span>
-                <span>•</span>
-                <span>조회수 {post.view_count || 0}</span>
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-full shadow-sm">
+              <div className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden flex-shrink-0">
+                {post.profiles?.avatar_url ? (
+                  <img src={post.profiles.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm">
+                    {post.profiles?.display_name?.[0]?.toUpperCase() || 'U'}
+                  </div>
+                )}
               </div>
+              <div className="pr-1 text-sm">
+                <div className="font-semibold text-slate-900 leading-tight">{post.profiles?.display_name || 'Anonymous'}</div>
+                <div className="text-[10px] text-slate-400">작성자</div>
+              </div>
+            </div>
+
+            {collaborators.map(c => (
+              <div key={c.id} className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-full shadow-sm">
+                <div className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden flex-shrink-0">
+                  {c.avatar_url ? (
+                    <img src={c.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-slate-200 text-slate-500 flex items-center justify-center font-bold text-sm">
+                      {c.display_name?.[0]?.toUpperCase() || 'U'}
+                    </div>
+                  )}
+                </div>
+                <div className="pr-1 text-sm">
+                  <div className="font-semibold text-slate-900 leading-tight">{c.display_name || 'Anonymous'}</div>
+                  <div className="text-[10px] text-slate-400">공동 작성자</div>
+                </div>
+              </div>
+            ))}
+            
+            <div className="flex items-center gap-2 text-sm text-slate-400 mt-1 sm:mt-0 sm:ml-2 w-full sm:w-auto">
+              <Clock className="w-3.5 h-3.5" />
+              <span>{new Date(post.created_at).toLocaleDateString()}</span>
+              <span>•</span>
+              <span>조회수 {post.view_count || 0}</span>
             </div>
           </div>
 
