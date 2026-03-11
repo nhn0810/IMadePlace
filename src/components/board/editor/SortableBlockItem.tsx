@@ -179,20 +179,47 @@ function TextBlock({ content, onChange }: { content: string, onChange: (v: strin
 
 function VerticalImageBlock({ content, onChange }: { content: string[], onChange: (v: string[]) => void }) {
   const [isUploading, setIsUploading] = useState(false)
+  const [isDragActive, setIsDragActive] = useState(false)
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
+  const processFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return
     setIsUploading(true)
     const urls = [...content]
     
-    for (let i = 0; i < files.length; i++) {
-        if (files[i].size > 5 * 1024 * 1024) continue
-        const url = await uploadImage(files[i])
-        if (url) urls.push(url)
+    try {
+      for (let i = 0; i < files.length; i++) {
+          if (!files[i].type.startsWith('image/')) continue
+          if (files[i].size > 5 * 1024 * 1024) continue
+          const url = await uploadImage(files[i])
+          if (url) urls.push(url)
+      }
+      onChange(urls)
+    } catch (err: any) {
+      alert('이미지 업로드에 실패했습니다. 버킷 권한이나 설정을 확인해주세요: ' + err.message)
+    } finally {
+      setIsUploading(false)
     }
-    onChange(urls)
-    setIsUploading(false)
+  }
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => processFiles(e.target.files)
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(true);
+  }
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+  }
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+    processFiles(e.dataTransfer.files)
   }
 
   const removeImage = (index: number) => {
@@ -209,17 +236,28 @@ function VerticalImageBlock({ content, onChange }: { content: string[], onChange
               <input type="file" multiple accept="image/*" className="hidden" disabled={isUploading} onChange={handleUpload}/>
            </label>
        </div>
-       <div className="flex flex-col gap-4">
+       <div 
+         className={`flex flex-col gap-4 min-h-[120px] rounded-xl transition-colors ${isDragActive ? 'bg-emerald-50 border-2 border-emerald-300 border-dashed p-4' : ''}`}
+         onDragOver={handleDragOver}
+         onDragLeave={handleDragLeave}
+         onDrop={handleDrop}
+       >
            {content.map((url, i) => (
-             <div key={i} className="relative group/img rounded-xl overflow-hidden border border-slate-200">
+             <div key={i} className="relative group/img rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
                <img src={url} alt={`img-${i}`} className="w-full object-cover" />
                <button type="button" onClick={() => removeImage(i)} className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-lg opacity-0 group-hover/img:opacity-100 transition-opacity"><X className="w-4 h-4"/></button>
              </div>
            ))}
-           {content.length === 0 && (
-             <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center text-slate-400 gap-2">
+           {content.length === 0 && !isDragActive && (
+             <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center text-slate-400 gap-2 h-full">
                 <ImageIcon className="w-8 h-8 opacity-50" />
-                <span className="text-sm">버튼을 눌러 이미지를 추가하세요</span>
+                <span className="text-sm">버튼을 누르거나 이미지를 이 곳에 드래그하여 드롭하세요</span>
+             </div>
+           )}
+           {isDragActive && (
+             <div className="flex-1 flex flex-col items-center justify-center text-emerald-500 font-bold gap-2">
+                <ImageIcon className="w-8 h-8 animate-bounce" />
+                <span className="text-sm">여기에 이미지를 놓으세요!</span>
              </div>
            )}
        </div>
@@ -229,19 +267,46 @@ function VerticalImageBlock({ content, onChange }: { content: string[], onChange
 
 function SwipeImageBlock({ content, onChange }: { content: string[], onChange: (v: string[]) => void }) {
   const [isUploading, setIsUploading] = useState(false)
+  const [isDragActive, setIsDragActive] = useState(false)
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
+  const processFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return
     setIsUploading(true)
     const urls = [...content]
-    for (let i = 0; i < files.length; i++) {
-        if (files[i].size > 5 * 1024 * 1024) continue
-        const url = await uploadImage(files[i])
-        if (url) urls.push(url)
+    try {
+      for (let i = 0; i < files.length; i++) {
+          if (!files[i].type.startsWith('image/')) continue
+          if (files[i].size > 5 * 1024 * 1024) continue
+          const url = await uploadImage(files[i])
+          if (url) urls.push(url)
+      }
+      onChange(urls)
+    } catch (err: any) {
+      alert('이미지 업로드에 실패했습니다. 버킷 권한이나 설정을 확인해주세요: ' + err.message)
+    } finally {
+      setIsUploading(false)
     }
-    onChange(urls)
-    setIsUploading(false)
+  }
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => processFiles(e.target.files)
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(true);
+  }
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+  }
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+    processFiles(e.dataTransfer.files)
   }
 
   const removeImage = (index: number) => {
@@ -258,17 +323,28 @@ function SwipeImageBlock({ content, onChange }: { content: string[], onChange: (
               <input type="file" multiple accept="image/*" className="hidden" disabled={isUploading} onChange={handleUpload}/>
            </label>
        </div>
-       <div className="flex flex-nowrap overflow-x-auto gap-4 snap-x pb-4">
+       <div 
+         className={`flex flex-nowrap overflow-x-auto gap-4 snap-x pb-4 min-h-[120px] rounded-xl transition-colors ${isDragActive ? 'bg-emerald-50 border-2 border-emerald-300 border-dashed p-4' : ''}`}
+         onDragOver={handleDragOver}
+         onDragLeave={handleDragLeave}
+         onDrop={handleDrop}
+       >
            {content.map((url, i) => (
-             <div key={i} className="relative group/img rounded-xl overflow-hidden border border-slate-200 flex-shrink-0 w-[80%] snap-center">
+             <div key={i} className="relative group/img rounded-xl overflow-hidden border border-slate-200 flex-shrink-0 w-[80%] snap-center bg-slate-100">
                <img src={url} alt={`img-${i}`} className="w-full h-auto object-cover" />
                <button type="button" onClick={() => removeImage(i)} className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-lg opacity-0 group-hover/img:opacity-100 transition-opacity"><X className="w-4 h-4"/></button>
              </div>
            ))}
-           {content.length === 0 && (
-             <div className="w-full bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center text-slate-400 gap-2">
+           {content.length === 0 && !isDragActive && (
+             <div className="w-full bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center text-slate-400 gap-2 h-[120px]">
                 <ImageIcon className="w-8 h-8 opacity-50" />
-                <span className="text-sm">버튼을 눌러 스와이프될 이미지를 추가하세요</span>
+                <span className="text-sm">버튼을 누르거나 이미지를 이 곳에 드래그하여 드롭하세요</span>
+             </div>
+           )}
+           {isDragActive && (
+             <div className="w-full flex flex-col items-center justify-center text-emerald-500 font-bold gap-2">
+                <ImageIcon className="w-8 h-8 animate-bounce" />
+                <span className="text-sm">여기에 이미지를 놓으세요!</span>
              </div>
            )}
        </div>

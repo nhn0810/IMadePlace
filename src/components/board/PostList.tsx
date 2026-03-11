@@ -2,9 +2,21 @@ import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
 import { MessageSquare, Heart, Eye } from 'lucide-react'
 
-// Basic stripped text utility for preview
-function stripHtml(html: string) {
-  return html.replace(/<[^>]*>?/gm, '').substring(0, 150) + '...'
+function stripHtml(content: string) {
+  if (!content) return ''
+  if (content.startsWith('[')) {
+    try {
+      const blocks = JSON.parse(content)
+      const textBlocks = blocks.filter((b: any) => b.type === 'text')
+      const combinedText = textBlocks.map((b: any) => {
+        return (typeof b.content === 'string' ? b.content.replace(/<[^>]*>?/gm, '') : '')
+      }).join(' ')
+      return combinedText.substring(0, 150) + (combinedText.length > 150 ? '...' : '')
+    } catch {
+      return '...'
+    }
+  }
+  return content.replace(/<[^>]*>?/gm, '').substring(0, 150) + (content.length > 150 ? '...' : '')
 }
 
 const STATUS_COLORS: Record<string, string> = {
