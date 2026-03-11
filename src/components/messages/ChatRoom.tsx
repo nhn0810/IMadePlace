@@ -16,8 +16,14 @@ export function ChatRoom({ currentUserId, otherUserId, isBlockedByMe, isBlockedB
   const [newMessage, setNewMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
   
+  const [isOtherTyping, setIsOtherTyping] = useState(false)
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
   const bottomRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
+  
+  // Deriving a consistent room ID for broadcast channels
+  const roomId = [currentUserId, otherUserId].sort().join('-')
 
   useEffect(() => {
     fetchInitialMessages()
@@ -57,10 +63,25 @@ export function ChatRoom({ currentUserId, otherUserId, isBlockedByMe, isBlockedB
       )
       .subscribe()
 
+    // Setup Broadcast Channel for typing indicators
+    const typingChannel = supabase.channel(`typing:${roomId}`)
+      .on(
+        'broadcast',
+        { event: 'typing' },
+        (payload) => {
+          if (payload.payload.userId === otherUserId) {
+             setIsOtherTyping(payload.payload.isTyping)
+          }
+        }
+      )
+      .subscribe()
+
     return () => {
       supabase.removeChannel(channel)
+      supabase.removeChannel(typingChannel)
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
     }
-  }, [currentUserId, otherUserId])
+  }, [currentUserId, otherUserId, roomId])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -78,6 +99,31 @@ export function ChatRoom({ currentUserId, otherUserId, isBlockedByMe, isBlockedB
     }
   }
 
+  const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewMessage(e.target.value)
+
+    // Broadcast that we are typing
+    supabase.channel(`typing:${roomId}`).send({
+      type: 'broadcast',
+      event: 'typing',
+      payload: { userId: currentUserId, isTyping: true },
+    })
+
+    // Clear existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current)
+    }
+
+    // Set a timeout to send isTyping: false after 5 seconds of inactivity
+    typingTimeoutRef.current = setTimeout(() => {
+      supabase.channel(`typing:${roomId}`).send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: { userId: currentUserId, isTyping: false },
+      })
+    }, 5000)
+  }
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newMessage.trim() || isBlockedByMe || isBlockedByThem) return
@@ -85,6 +131,14 @@ export function ChatRoom({ currentUserId, otherUserId, isBlockedByMe, isBlockedB
     const content = newMessage.trim()
     setNewMessage('')
     setIsSending(true)
+    
+    // Immediately stop typing indicator on send
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
+    supabase.channel(`typing:${roomId}`).send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: { userId: currentUserId, isTyping: false },
+    })
 
     const { data, error } = await supabase.from('messages').insert({
       sender_id: currentUserId,
@@ -128,6 +182,17 @@ export function ChatRoom({ currentUserId, otherUserId, isBlockedByMe, isBlockedB
             )
           })
         )}
+        
+        {isOtherTyping && (
+          <div className="flex justify-start">
+            <div className="bg-white border border-slate-100 px-4 py-3 rounded-2xl rounded-tl-sm shadow-sm flex items-center gap-1.5 h-11">
+              <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+              <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+              <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></span>
+            </div>
+          </div>
+        )}
+        
         <div ref={bottomRef} />
       </div>
 
@@ -145,7 +210,7 @@ export function ChatRoom({ currentUserId, otherUserId, isBlockedByMe, isBlockedB
             <input
               type="text"
               value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
+              onChange={handleTyping}
               placeholder="메시지를 입력하세요 (한국어)..."
               className="w-full bg-slate-100 border-none px-4 py-3.5 pr-14 rounded-full focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-medium text-slate-800"
               autoComplete="off"
