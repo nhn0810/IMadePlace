@@ -23,6 +23,7 @@ export default function WritePostPage() {
   // Categorical Data
   const [postType, setPostType] = useState('')
   const [projectName, setProjectName] = useState('')
+  const [shortDescription, setShortDescription] = useState('')
   const [recruitmentDate, setRecruitmentDate] = useState('')
   
   const [collaborators, setCollaborators] = useState<Profile[]>([])
@@ -138,6 +139,7 @@ export default function WritePostPage() {
       collaborator_ids: collaborators.map(c => c.id),
       post_type: postType || null,
       project_name: projectName.trim() || null,
+      short_description: shortDescription.trim() || null,
       recruitment_end_date: recruitmentDate || null,
     })
 
@@ -183,13 +185,25 @@ export default function WritePostPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">설명할 프로젝트명 (선택)</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">설명할 프로젝트명 (가명)</label>
               <input
                 type="text"
+                required
                 value={projectName}
                 onChange={(e) => setProjectName(e.target.value)}
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                placeholder="어떤 프로젝트인가요?"
+                placeholder="가명, 명칭을 입력하세요..."
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">간단한 프로젝트 설명 (1~2줄 코멘트)</label>
+              <input
+                type="text"
+                required
+                value={shortDescription}
+                onChange={(e) => setShortDescription(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                placeholder="이 프로젝트는 어떤 프로젝트인가요?"
               />
             </div>
           </div>

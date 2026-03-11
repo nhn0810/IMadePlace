@@ -159,6 +159,12 @@ export default async function PostDetailPage({ params }: { params: { category: s
           {post.title}
         </h1>
 
+        {post.short_description && (
+          <p className="text-lg text-slate-500 font-medium mb-8 leading-relaxed border-l-4 border-emerald-400 pl-4 py-1 bg-slate-50/50 rounded-r-xl">
+            {post.short_description}
+          </p>
+        )}
+
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-full shadow-sm">
