@@ -16,9 +16,6 @@ type UserProfile = {
 }
 
 export default async function MessagesInboxPage() {
-  // Break cache aggressively for inbox badges
-  revalidatePath('/messages')
-
   const supabase = await createClient()
 
   const { data: { session } } = await supabase.auth.getSession()

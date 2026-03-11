@@ -36,8 +36,6 @@ export default async function DMPage({ params }: { params: { userId: string } })
     .eq('sender_id', userId)
     .eq('is_read', false)
 
-  revalidatePath('/messages')
-
   // Fetch target user 
   const { data: otherUser } = await supabase
     .from('profiles')
