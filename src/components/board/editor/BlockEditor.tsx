@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -30,20 +30,27 @@ export function BlockEditor({
   const [blocks, setBlocks] = useState<BlockData[]>([])
   const [focusedId, setFocusedId] = useState<string | null>(null)
 
+  const initialized = useRef(false)
+
   // Initialization parsing
   useEffect(() => {
-    if (content && typeof content === 'string' && content.startsWith('[')) {
-      try {
-        setBlocks(JSON.parse(content))
-      } catch (e) {
-        console.error("Failed to parse blocks", e)
+    if (initialized.current) return
+    
+    if (content && typeof content === 'string') {
+      if (content.startsWith('[')) {
+        try {
+          setBlocks(JSON.parse(content))
+        } catch (e) {
+          console.error("Failed to parse blocks", e)
+        }
       }
+      initialized.current = true
     }
-    // If empty or HTML string, we just start empty. Legacy HTML editing is not requested.
   }, [content])
 
   // Sync to parent
   useEffect(() => {
+    if (blocks.length > 0) initialized.current = true
     onChange(JSON.stringify(blocks))
   }, [blocks, onChange])
 

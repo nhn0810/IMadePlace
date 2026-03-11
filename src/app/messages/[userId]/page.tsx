@@ -19,10 +19,6 @@ export default async function DMPage({ params }: { params: { userId: string } })
     redirect('/login')
   }
 
-  // Prevent messaging self
-  if (session.user.id === userId) {
-    redirect('/messages')
-  }
 
   // Auto-mark messages from this user as read using Service Role to bypass missing RLS UPDATE policy
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
