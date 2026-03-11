@@ -19,6 +19,11 @@ export default function WritePostPage() {
   const [user, setUser] = useState<any>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   
+  // Categorical Data
+  const [postType, setPostType] = useState('')
+  const [projectName, setProjectName] = useState('')
+  const [recruitmentDate, setRecruitmentDate] = useState('')
+  
   const [collaborators, setCollaborators] = useState<Profile[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<Profile[]>([])
@@ -83,6 +88,20 @@ export default function WritePostPage() {
     e.preventDefault()
     if (!title.trim() || !content.trim()) return
     
+    // Category validations
+    if (category === 'imade' && !postType) {
+      alert('말머리(태그)를 선택해주세요.')
+      return
+    }
+    if (category === 'youmake' && !postType) {
+      alert('말머리(태그)를 선택해주세요.')
+      return
+    }
+    if (category === 'youmake' && postType === '같이 하자' && (!projectName.trim() || !recruitmentDate)) {
+      alert('모집 글은 프로젝트 가명과 종료 일자를 반드시 입력해야 합니다.')
+      return
+    }
+    
     setIsSubmitting(true)
     
     if (user?.banned_until && new Date(user.banned_until) > new Date()) {
@@ -110,7 +129,10 @@ export default function WritePostPage() {
       title,
       content,
       status: finalStatus,
-      collaborator_ids: collaborators.map(c => c.id)
+      collaborator_ids: collaborators.map(c => c.id),
+      post_type: postType || null,
+      project_name: projectName.trim() || null,
+      recruitment_end_date: recruitmentDate || null,
     })
 
     setIsSubmitting(false)
@@ -138,6 +160,94 @@ export default function WritePostPage() {
       <h1 className="text-3xl font-bold text-slate-900 mb-8">게시글 작성</h1>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        
+        {category === 'imade' && (
+          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-3">태그 (선택 필수)</label>
+              <div className="flex flex-wrap gap-2">
+                {['제작기', '결과', '계획', '도움요청'].map(tag => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => setPostType(tag)}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                      postType === tag 
+                        ? tag === '제작기' ? 'bg-amber-100 text-amber-800 border-amber-200 border'
+                        : tag === '결과' ? 'bg-emerald-100 text-emerald-800 border-emerald-200 border'
+                        : tag === '계획' ? 'bg-slate-200 text-slate-800 border-slate-300 border'
+                        : 'bg-rose-100 text-rose-800 border-rose-200 border'
+                        : 'bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">설명할 프로젝트명 (선택)</label>
+              <input
+                type="text"
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                placeholder="어떤 프로젝트인가요?"
+              />
+            </div>
+          </div>
+        )}
+
+        {category === 'youmake' && (
+          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-3">글 종류 (선택 필수)</label>
+              <div className="flex flex-wrap gap-2">
+                {['이건 어때?', '같이 하자'].map(tag => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => setPostType(tag)}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                      postType === tag 
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-200 border shadow-sm'
+                        : 'bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {tag === '이건 어때?' ? '💡 아이디어 제안 (이건 어때?)' : '🤝 프로젝트 모집 (같이 하자)'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {postType === '같이 하자' && (
+              <div className="flex flex-col sm:flex-row gap-4 p-4 bg-emerald-50/50 border border-emerald-100 rounded-xl">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-emerald-800 mb-2">프리 롬핑 프로젝트 가명 <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    required
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                    placeholder="프로젝트 가명을 지어주세요..."
+                  />
+                </div>
+                <div className="w-full sm:w-1/3">
+                  <label className="block text-sm font-medium text-emerald-800 mb-2">모집 마감일 <span className="text-rose-500">*</span></label>
+                  <input
+                    type="date"
+                    required
+                    value={recruitmentDate}
+                    onChange={(e) => setRecruitmentDate(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-2">제목</label>
           <input

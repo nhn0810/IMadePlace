@@ -42,6 +42,19 @@ export default async function BoardPage({
 
   const { data: posts, error } = await query
 
+  let recruitingPosts: any[] = []
+  if (category === 'youmake' && !q) {
+    const { data: recruits } = await supabase
+      .from('posts')
+      .select(`*, profiles:author_id (display_name, avatar_url)`)
+      .eq('category', 'youmake')
+      .eq('post_type', '같이 하자')
+      .gt('recruitment_end_date', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      
+    if (recruits) recruitingPosts = recruits
+  }
+
   const { data: { session } } = await supabase.auth.getSession()
   let profile = null
   let isMasterOrAdmin = false
@@ -72,6 +85,41 @@ export default async function BoardPage({
       <div className="mb-6 -mx-2">
         <SearchInput initialQuery={q} initialCategory={category} variant="compact" />
       </div>
+
+      {category === 'youmake' && recruitingPosts.length > 0 && !q && (
+        <div className="mb-10 bg-emerald-50 rounded-2xl border border-emerald-100 p-6 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500 opacity-5 rounded-bl-full pointer-events-none"></div>
+          <h2 className="text-lg font-bold text-emerald-800 mb-4 flex items-center gap-2">
+            🔥 팀원을 모집 중인 프로젝트 ({recruitingPosts.length})
+          </h2>
+          <div className="flex flex-col gap-2">
+            {recruitingPosts.map(post => (
+              <Link 
+                key={`recruit-${post.id}`} 
+                href={`/board/youmake/${post.id}`}
+                className="group w-full text-left bg-white px-5 py-3.5 rounded-xl border border-emerald-100 hover:border-emerald-300 hover:shadow-md transition-all flex items-center justify-between"
+              >
+                <div>
+                  <div className="font-bold text-slate-800 group-hover:text-emerald-600 transition-colors flex items-center gap-2">
+                    <span className="text-emerald-500 text-sm">[{post.project_name}]</span>
+                    {post.title}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
+                    <span>{post.profiles?.display_name}</span>
+                    <span className="w-1 h-1 bg-slate-200 rounded-full"></span>
+                    <span className="font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
+                      마감: {new Date(post.recruitment_end_date).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+                <div className="w-8 h-8 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-emerald-500 group-hover:text-white group-hover:border-emerald-500 transition-all">
+                  &rarr;
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex justify-between items-center mb-6">
         <div className="flex gap-4">

@@ -6,6 +6,7 @@ import { ArrowLeft, Clock } from 'lucide-react'
 import { CommentsSection } from '@/components/board/CommentsSection'
 import { LikeButton } from '@/components/board/LikeButton'
 import { ViewTracker } from '@/components/board/ViewTracker'
+import { ParticipateButton } from '@/components/board/ParticipateButton'
 
 const STATUS_COLORS: Record<string, string> = {
   waiting: 'bg-slate-100 text-slate-600',
@@ -48,6 +49,8 @@ export default async function PostDetailPage({ params }: { params: { category: s
   const { data: { session } } = await supabase.auth.getSession()
   let profile = null
   let isLikedByMe = false
+  let isParticipating = false
+  
   if (session) {
     const { data: p } = await supabase.from('profiles').select('id, role, banned_until').eq('id', session.user.id).single()
     profile = p
@@ -55,6 +58,12 @@ export default async function PostDetailPage({ params }: { params: { category: s
     // Check if liked
     const { data: like } = await supabase.from('likes').select('id').eq('post_id', id).eq('user_id', session.user.id).single()
     isLikedByMe = !!like
+    
+    // Check if participating
+    if (post.post_type === '같이 하자') {
+      const { data: part } = await supabase.from('project_participants').select('id').eq('post_id', id).eq('user_id', session.user.id).single()
+      isParticipating = !!part
+    }
   }
 
   // Fetch likes count
@@ -110,7 +119,7 @@ export default async function PostDetailPage({ params }: { params: { category: s
       </div>
 
       <header className="mb-10 pb-8 border-b border-slate-200">
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex items-center gap-3 mb-4">
           <span className="text-emerald-600 font-semibold uppercase tracking-wider text-sm bg-emerald-50 px-3 py-1 rounded-full">
             {category.replace('imade', 'I made').replace('youmake', 'You make').replace('iuse', 'I use')}
           </span>
@@ -119,7 +128,32 @@ export default async function PostDetailPage({ params }: { params: { category: s
               {post.status.replace('_', ' ')}
             </span>
           )}
+          {post.post_type && (
+            <span className={`px-3 py-1 rounded-full text-[13px] font-bold tracking-tight shadow-sm
+              ${post.post_type === '제작기' ? 'bg-amber-100 text-amber-800' 
+                : post.post_type === '결과' ? 'bg-emerald-100 text-emerald-800'
+                : post.post_type === '계획' ? 'bg-slate-200 text-slate-800'
+                : post.post_type === '도움요청' ? 'bg-rose-100 text-rose-800'
+                : post.post_type === '이건 어때?' ? 'bg-indigo-100 text-indigo-800'
+                : 'bg-emerald-500 text-white' // 같이 하자
+              }
+            `}>
+              {post.post_type === '같이 하자' ? '🤝 같이 하자' : post.post_type}
+            </span>
+          )}
         </div>
+
+        {post.project_name && (
+          <div className="mb-2 text-emerald-600 font-bold tracking-tight flex items-center gap-2">
+            <span className="text-xl">[{post.project_name}]</span>
+            {post.post_type === '같이 하자' && post.recruitment_end_date && (
+              <span className={`text-sm px-2 py-0.5 rounded-full ${new Date(post.recruitment_end_date) > new Date() ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
+                {new Date(post.recruitment_end_date) > new Date() ? '모집 중' : '모집 마감'}
+                ({new Date(post.recruitment_end_date).toLocaleDateString()} 까지)
+              </span>
+            )}
+          </div>
+        )}
 
         <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-6 leading-tight">
           {post.title}
@@ -183,9 +217,28 @@ export default async function PostDetailPage({ params }: { params: { category: s
 
       {/* Post Content */}
       <div 
-        className="prose prose-slate prose-lg max-w-none mb-16"
+        className="prose prose-slate prose-lg max-w-none mb-10"
         dangerouslySetInnerHTML={{ __html: post.content }}
       />
+      
+      {/* Participate Button */}
+      {post.post_type === '같이 하자' && (
+        <div className="mb-16">
+           {new Date(post.recruitment_end_date) > new Date() ? (
+             session ? (
+               <ParticipateButton postId={post.id} userId={session.user.id} initialJoined={isParticipating} />
+             ) : (
+               <div className="p-4 bg-slate-50 text-slate-500 text-center rounded-2xl border border-slate-200">
+                 참여하려면 로그인이 필요합니다.
+               </div>
+             )
+           ) : (
+             <div className="p-4 bg-slate-50 text-slate-500 font-bold text-center rounded-2xl border border-slate-200 opacity-60">
+               모집이 마감된 프로젝트입니다.
+             </div>
+           )}
+        </div>
+      )}
 
       {/* Interactions boundary */}
       <div className="border-t border-slate-200 pt-10">

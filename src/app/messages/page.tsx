@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { MessageSquare } from 'lucide-react'
+import { subDays, formatISO } from 'date-fns'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -27,7 +28,8 @@ export default async function MessagesInboxPage() {
     .eq('id', session.user.id)
     .single()
 
-  // Fetch recent conversations for everyone
+  // Fetch recent conversations for everyone (limited to 14 days)
+  const twoWeeksAgo = formatISO(subDays(new Date(), 14))
   const { data: messages } = await supabase
     .from('messages')
     .select(`
@@ -36,6 +38,7 @@ export default async function MessagesInboxPage() {
       receiver:receiver_id(id, display_name, avatar_url, role)
     `)
     .or(`sender_id.eq.${session.user.id},receiver_id.eq.${session.user.id}`)
+    .gte('created_at', twoWeeksAgo)
     .order('created_at', { ascending: false })
 
   const conversantsMap = new Map()

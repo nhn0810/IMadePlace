@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Send } from 'lucide-react'
+import { subDays, formatISO } from 'date-fns'
 
 // Simple notification mock function for the requirement
 async function triggerNotification(senderId: string, receiverId: string, message: string) {
@@ -88,10 +89,12 @@ export function ChatRoom({ currentUserId, otherUserId, isBlockedByMe, isBlockedB
   }, [messages])
 
   async function fetchInitialMessages() {
+    const twoWeeksAgo = formatISO(subDays(new Date(), 14))
     const { data } = await supabase
       .from('messages')
       .select('*')
       .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${currentUserId})`)
+      .gte('created_at', twoWeeksAgo)
       .order('created_at', { ascending: true })
 
     if (data) {

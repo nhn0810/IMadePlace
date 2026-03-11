@@ -41,8 +41,24 @@ export function PostList({ posts, category }: { posts: any[], category: string }
                 </div>
                 <div>
                   <div className="font-medium text-slate-900">{post.profiles?.display_name || 'Anonymous'}</div>
-                  <div className="text-xs text-slate-400">
-                    {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
+                  <div className="flex items-center gap-2 text-xs text-slate-400">
+                    <span>{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</span>
+                    {post.post_type && (
+                      <>
+                        <span>•</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold tracking-tight
+                          ${post.post_type === '제작기' ? 'bg-amber-100 text-amber-800' 
+                            : post.post_type === '결과' ? 'bg-emerald-100 text-emerald-800'
+                            : post.post_type === '계획' ? 'bg-slate-200 text-slate-800'
+                            : post.post_type === '도움요청' ? 'bg-rose-100 text-rose-800'
+                            : post.post_type === '이건 어때?' ? 'bg-indigo-100 text-indigo-800'
+                            : 'bg-emerald-500 text-white'
+                          }
+                        `}>
+                          {post.post_type}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -54,7 +70,16 @@ export function PostList({ posts, category }: { posts: any[], category: string }
               )}
             </div>
 
+            <div className="mb-2">
+              {category === 'youmake' && post.post_type === '같이 하자' && post.recruitment_end_date && (
+                <span className={`inline-block mb-2 text-xs font-bold px-2 py-0.5 rounded-full ${new Date(post.recruitment_end_date) > new Date() ? 'bg-emerald-100 text-emerald-700 animate-pulse' : 'bg-slate-100 text-slate-500'}`}>
+                  {new Date(post.recruitment_end_date) > new Date() ? '🔥 모집 중' : '모집 마감'}
+                </span>
+              )}
+            </div>
+
             <h2 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-emerald-600 transition-colors line-clamp-1">
+              {post.project_name && <span className="text-emerald-600 mr-2">[{post.project_name}]</span>}
               {post.title}
             </h2>
             <p className="text-slate-500 leading-relaxed line-clamp-2 mb-4">
