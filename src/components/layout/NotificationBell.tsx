@@ -108,7 +108,11 @@ export function NotificationBell({ userId }: { userId: string }) {
     setNotifications(prev => prev.filter(n => n.id !== id))
     
     // Update DB: Delete notification upon reading, as requested
-    await supabase.from('notifications').delete().eq('id', id)
+    try {
+      await supabase.from('notifications').delete().eq('id', id)
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   async function deleteNotification(id: string, e: React.MouseEvent) {
@@ -169,9 +173,17 @@ export function NotificationBell({ userId }: { userId: string }) {
                       <X className="w-4 h-4" />
                     </button>
                     {notification.link ? (
-                      <Link href={notification.link} className="block w-full h-full pr-6">
+                      <Link 
+                        href={notification.link} 
+                        className="block w-full h-full pr-6"
+                        onClick={(e) => {
+                          // Allow navigation but still trigger delete
+                          handleClickNotification(notification.id)
+                          setIsOpen(false)
+                        }}
+                      >
                          <div className="text-sm text-slate-800 font-medium mb-1">
-                           {notification.type === 'announcement' ? '📢 공지사항' : '💬 새 메시지'}
+                           {notification.type === 'announcement' ? '📢 공지사항' : '💬 새 알림'}
                          </div>
                          <p className="text-sm text-slate-600 line-clamp-2">{notification.content}</p>
                          <div className="text-xs text-slate-400 mt-2">
