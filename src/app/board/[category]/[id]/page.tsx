@@ -7,6 +7,7 @@ import { CommentsSection } from '@/components/board/CommentsSection'
 import { LikeButton } from '@/components/board/LikeButton'
 import { ViewTracker } from '@/components/board/ViewTracker'
 import { ParticipateButton } from '@/components/board/ParticipateButton'
+import { BlockRenderer } from '@/components/board/editor/BlockRenderer'
 
 const STATUS_COLORS: Record<string, string> = {
   waiting: 'bg-slate-100 text-slate-600',
@@ -222,10 +223,9 @@ export default async function PostDetailPage({ params }: { params: { category: s
       </header>
 
       {/* Post Content */}
-      <div 
-        className="prose prose-slate prose-lg max-w-none mb-10"
-        dangerouslySetInnerHTML={{ __html: post.content }}
-      />
+      <div className="mb-12">
+        <BlockRenderer content={post.content} />
+      </div>
       
       {/* Participate Button */}
       {post.post_type === '같이 하자' && (
