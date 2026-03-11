@@ -12,7 +12,7 @@ async function triggerNotification(senderId: string, receiverId: string, message
   console.log(`[Notification Triggered] to ${receiverId}: New message from ${senderId}`)
 }
 
-export function ChatRoom({ currentUserId, otherUserId, isBlockedByMe, isBlockedByThem }: { currentUserId: string, otherUserId: string, isBlockedByMe?: boolean, isBlockedByThem?: boolean }) {
+export function ChatRoom({ currentUserId, otherUserId, isBlockedByMe, isBlockedByThem, markAsReadAction }: { currentUserId: string, otherUserId: string, isBlockedByMe?: boolean, isBlockedByThem?: boolean, markAsReadAction?: () => Promise<void> }) {
   const [messages, setMessages] = useState<any[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
@@ -28,6 +28,9 @@ export function ChatRoom({ currentUserId, otherUserId, isBlockedByMe, isBlockedB
 
   useEffect(() => {
     fetchInitialMessages()
+    if (markAsReadAction) {
+      markAsReadAction().catch(console.error)
+    }
 
     const channel = supabase
       .channel('messages_channel')
@@ -57,11 +60,13 @@ export function ChatRoom({ currentUserId, otherUserId, isBlockedByMe, isBlockedB
         },
         (payload) => {
           if (payload.eventType === 'INSERT' && payload.new.receiver_id === otherUserId) {
+            // New message sent by me
             setMessages((prev) => {
               if (prev.find(m => m.id === payload.new.id)) return prev
               return [...prev, payload.new]
             })
           } else if (payload.eventType === 'UPDATE') {
+             // If my message got updated (e.g. marked as read by the other person, OR me marking my own self-message as read)
              setMessages((prev) => prev.map(m => m.id === payload.new.id ? payload.new : m))
           }
         }

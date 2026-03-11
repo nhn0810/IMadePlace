@@ -20,17 +20,23 @@ export default async function DMPage({ params }: { params: { userId: string } })
   }
 
 
-  // Auto-mark messages from this user as read using Service Role to bypass missing RLS UPDATE policy
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  const adminClient = (await import('@supabase/supabase-js')).createClient(supabaseUrl, supabaseServiceKey)
-  
-  await adminClient
-    .from('messages')
-    .update({ is_read: true })
-    .eq('receiver_id', session.user.id)
-    .eq('sender_id', userId)
-    .eq('is_read', false)
+  // Auto-mark messages from this user as read using Service Role
+  async function markAsReadAction() {
+    'use server'
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    const adminClient = (await import('@supabase/supabase-js')).createClient(supabaseUrl, supabaseServiceKey)
+    if (!session) return
+    await adminClient
+      .from('messages')
+      .update({ is_read: true })
+      .eq('receiver_id', session.user.id)
+      .eq('sender_id', userId)
+      .eq('is_read', false)
+  }
+
+  // Mark on initial server render
+  await markAsReadAction()
 
   // Fetch target user 
   const { data: otherUser } = await supabase
@@ -138,6 +144,7 @@ export default async function DMPage({ params }: { params: { userId: string } })
           otherUserId={otherUser.id} 
           isBlockedByMe={!!iBlockedThem}
           isBlockedByThem={!!isBlockedByThem}
+          markAsReadAction={markAsReadAction}
         />
       </main>
     </div>
