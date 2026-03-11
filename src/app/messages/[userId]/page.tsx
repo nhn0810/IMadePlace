@@ -33,6 +33,13 @@ export default async function DMPage({ params }: { params: { userId: string } })
       .eq('receiver_id', session.user.id)
       .eq('sender_id', userId)
       .eq('is_read', false)
+
+    await adminClient
+      .from('notifications')
+      .delete()
+      .eq('user_id', session.user.id)
+      .eq('sender_id', userId)
+      .eq('type', 'message')
   }
 
   // Mark on initial server render

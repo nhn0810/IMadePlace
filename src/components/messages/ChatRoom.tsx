@@ -5,11 +5,26 @@ import { createClient } from '@/lib/supabase/client'
 import { Send } from 'lucide-react'
 import { subDays, formatISO } from 'date-fns'
 
-// Simple notification mock function for the requirement
+// Auto-prune and insert the latest message notification
 async function triggerNotification(senderId: string, receiverId: string, message: string) {
-  // In a real app, this would call an API route sending an email via SendGrid/Resend 
-  // or a Web Push trigger. Since we're frontend only, we just log it.
-  console.log(`[Notification Triggered] to ${receiverId}: New message from ${senderId}`)
+  const supabase = createClient()
+  
+  // 1. Remove previous 'message' notification from this sender to keep DB clean
+  await supabase.from('notifications')
+    .delete()
+    .eq('user_id', receiverId)
+    .eq('sender_id', senderId)
+    .eq('type', 'message')
+    
+  // 2. Insert new 'latest' notification
+  await supabase.from('notifications')
+    .insert({
+      user_id: receiverId,
+      sender_id: senderId,
+      type: 'message',
+      content: `새 메시지: ${message.length > 20 ? message.substring(0, 20) + '...' : message}`,
+      link: `/messages/${senderId}`
+    })
 }
 
 export function ChatRoom({ currentUserId, otherUserId, isBlockedByMe, isBlockedByThem, markAsReadAction }: { currentUserId: string, otherUserId: string, isBlockedByMe?: boolean, isBlockedByThem?: boolean, markAsReadAction?: () => Promise<void> }) {

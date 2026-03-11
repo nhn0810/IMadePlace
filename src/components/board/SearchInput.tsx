@@ -11,13 +11,22 @@ const CATEGORIES = [
   { id: 'iuse', name: '내가 쓰는' },
 ]
 
+const SCOPES = [
+  { id: 'all', name: '통합 검색' },
+  { id: 'title', name: '제목' },
+  { id: 'author', name: '작성자 (협업자 포함)' },
+  { id: 'project', name: '프로젝트명' },
+]
+
 export function SearchInput({ 
   initialQuery = '', 
   initialCategory = 'all',
+  initialScope = 'all',
   variant = 'hero'
 }: { 
   initialQuery?: string, 
   initialCategory?: string,
+  initialScope?: string,
   variant?: 'hero' | 'compact'
 }) {
   const router = useRouter()
@@ -26,6 +35,7 @@ export function SearchInput({
   
   const [query, setQuery] = useState(initialQuery)
   const [category, setCategory] = useState(initialCategory)
+  const [scope, setScope] = useState(initialScope)
   const [isScrolled, setIsScrolled] = useState(false)
 
   // Listen to scroll to shrink the search bar
@@ -47,6 +57,7 @@ export function SearchInput({
   // Sync state with URL params if they change externally (e.g. back button)
   useEffect(() => {
     setQuery(searchParams.get('q') || '')
+    setScope(searchParams.get('scope') || 'all')
     
     // Auto-detect category from pathname if we are on a board page
     if (pathname.startsWith('/board/')) {
@@ -64,13 +75,10 @@ export function SearchInput({
     
     const params = new URLSearchParams()
     if (query.trim()) params.set('q', query.trim())
+    if (category !== 'all') params.set('category', category)
+    if (scope !== 'all') params.set('scope', scope)
     
-    // Where to redirect based on selected category
-    if (category === 'all') {
-      router.push(`/?${params.toString()}`)
-    } else {
-      router.push(`/board/${category}?${params.toString()}`)
-    }
+    router.push(`/search?${params.toString()}`)
   }
 
   // Determine styles based on state
@@ -98,6 +106,19 @@ export function SearchInput({
           >
             {CATEGORIES.map(cat => (
               <option key={cat.id} value={cat.id}>{cat.name}</option>
+            ))}
+          </select>
+          
+          <div className="w-[1px] h-8 bg-slate-200 hidden md:block"></div>
+
+          {/* Scope Dropdown */}
+          <select 
+            value={scope}
+            onChange={(e) => setScope(e.target.value)}
+            className={`bg-transparent font-medium border-0 focus:ring-0 text-slate-600 pl-4 py-3 cursor-pointer outline-none min-w-[140px] ${inputSizeClasses}`}
+          >
+            {SCOPES.map(s => (
+              <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
           
