@@ -34,31 +34,35 @@ export function ChatRoom({ currentUserId, otherUserId, isBlockedByMe, isBlockedB
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*', // Listen to INSERT, UPDATE, DELETE
           schema: 'public',
           table: 'messages',
           filter: `receiver_id=eq.${currentUserId}`
         },
         (payload) => {
-          if (payload.new.sender_id === otherUserId) {
+          if (payload.eventType === 'INSERT' && payload.new.sender_id === otherUserId) {
             setMessages((prev) => [...prev, payload.new])
+          } else if (payload.eventType === 'UPDATE') {
+            setMessages((prev) => prev.map(m => m.id === payload.new.id ? payload.new : m))
           }
         }
       )
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*', // Listen to INSERT, UPDATE, DELETE
           schema: 'public',
           table: 'messages',
           filter: `sender_id=eq.${currentUserId}`
         },
         (payload) => {
-          if (payload.new.receiver_id === otherUserId) {
+          if (payload.eventType === 'INSERT' && payload.new.receiver_id === otherUserId) {
             setMessages((prev) => {
               if (prev.find(m => m.id === payload.new.id)) return prev
               return [...prev, payload.new]
             })
+          } else if (payload.eventType === 'UPDATE') {
+             setMessages((prev) => prev.map(m => m.id === payload.new.id ? payload.new : m))
           }
         }
       )
@@ -171,7 +175,11 @@ export function ChatRoom({ currentUserId, otherUserId, isBlockedByMe, isBlockedB
           messages.map((msg, i) => {
             const isMe = msg.sender_id === currentUserId
             return (
-              <div key={msg.id || i} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+              <div key={msg.id || i} className={`flex ${isMe ? 'justify-end' : 'justify-start'} items-end gap-1 mb-2`}>
+                {isMe && !msg.is_read && (
+                  <span className="text-[10px] text-emerald-500 font-bold mb-1">1</span>
+                )}
+                
                 <div 
                   className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-[15px] leading-relaxed shadow-sm
                     ${isMe 
