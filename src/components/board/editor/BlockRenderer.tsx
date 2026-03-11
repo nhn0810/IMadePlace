@@ -21,9 +21,11 @@ export function BlockRenderer({ content }: { content: string }) {
       {blocks.map((block) => {
         if (block.type === 'text') {
           return (
-            <div key={block.id} className="text-lg text-slate-800 leading-relaxed whitespace-pre-wrap">
-              {block.content as string}
-            </div>
+            <div
+              key={block.id}
+              className="prose prose-slate prose-lg max-w-none mb-8"
+              dangerouslySetInnerHTML={{ __html: block.content as string }}
+            />
           )
         }
 
@@ -32,7 +34,7 @@ export function BlockRenderer({ content }: { content: string }) {
           return (
             <div key={block.id} className="flex flex-col gap-4">
               {urls.map((url, i) => (
-                <img key={i} src={url} alt={`img-${i}`} className="w-full rounded-2xl object-cover shadow-sm border border-slate-100" />
+                <img key={i} src={url} alt={`img-${i}`} className="w-full rounded-2xl object-cover shadow-sm" />
               ))}
             </div>
           )
@@ -44,7 +46,7 @@ export function BlockRenderer({ content }: { content: string }) {
             <div key={block.id} className="flex flex-nowrap overflow-x-auto gap-4 snap-x pb-4">
               {urls.map((url, i) => (
                 <div key={i} className="flex-shrink-0 w-[85%] sm:w-[70%] snap-center first:ml-0">
-                  <img src={url} alt={`img-${i}`} className="w-full h-auto rounded-2xl object-cover shadow-sm border border-slate-100" />
+                  <img src={url} alt={`img-${i}`} className="w-full h-auto rounded-2xl object-cover shadow-sm" />
                 </div>
               ))}
             </div>
@@ -54,11 +56,11 @@ export function BlockRenderer({ content }: { content: string }) {
         if (block.type === 'poll') {
           const poll = block.content as any
           return (
-            <div key={block.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-6 sm:p-8">
+            <div key={block.id} className="p-6 sm:p-8 rounded-3xl bg-slate-50/50">
                <div className="flex items-center justify-between mb-6">
                  <span className="text-sm font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">투표</span>
                  {poll.endDate && (
-                   <span className="text-xs font-semibold text-slate-500 bg-white border border-slate-200 px-3 py-1 rounded-full">
+                   <span className="text-xs font-semibold text-slate-500 bg-white px-3 py-1 border border-slate-200 rounded-full shadow-sm">
                      마감: {new Date(poll.endDate).toLocaleDateString()}
                    </span>
                  )}
@@ -66,7 +68,7 @@ export function BlockRenderer({ content }: { content: string }) {
                <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mb-8">{poll.question}</h3>
                <div className="flex flex-col gap-3">
                  {poll.options?.map((opt: any) => (
-                   <button key={opt.id} className="text-left px-5 py-4 bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md rounded-xl transition-all font-medium text-slate-700">
+                   <button key={opt.id} className="text-left px-5 py-4 bg-white hover:border-emerald-500 hover:shadow-md border border-slate-200 rounded-xl transition-all font-medium text-slate-700 shadow-sm">
                      {opt.text}
                    </button>
                  ))}

@@ -2,11 +2,15 @@
 
 import { useState } from 'react'
 import { BlockData } from './types'
-import { Plus, GripVertical, X, Image as ImageIcon, Type, LayoutTemplate, PieChart, Upload, Calendar } from 'lucide-react'
+import { Plus, GripVertical, X, Image as ImageIcon, Type, LayoutTemplate, PieChart, Upload, Calendar, Bold, Italic, Heading2, Palette } from 'lucide-react'
 import { CSS } from '@dnd-kit/utilities'
 import { useSortable } from '@dnd-kit/sortable'
 import { uploadImage } from '@/lib/supabase/storage'
 import { format } from 'date-fns'
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import { TextStyle } from '@tiptap/extension-text-style'
+import { Color } from '@tiptap/extension-color'
 
 // Individual Block Wrappers
 export function SortableBlockItem({
@@ -80,19 +84,88 @@ export function SortableBlockItem({
 }
 
 function TextBlock({ content, onChange }: { content: string, onChange: (v: string) => void }) {
+  const [showColorPicker, setShowColorPicker] = useState(false)
+  const colors = ['#0f172a', '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899']
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      TextStyle,
+      Color,
+    ],
+    content: content || '',
+    onUpdate: ({ editor }) => {
+      onChange(editor.getHTML())
+    },
+    editorProps: {
+      attributes: {
+        class: 'prose prose-slate max-w-none focus:outline-none min-h-[60px] text-lg leading-relaxed',
+      },
+    },
+  })
+
+  if (!editor) return <div className="min-h-[60px]" />
+
   return (
-    <textarea
-      value={content}
-      onChange={(e) => {
-        onChange(e.target.value)
-        // Auto-expand
-        e.target.style.height = 'auto'
-        e.target.style.height = e.target.scrollHeight + 'px'
-      }}
-      placeholder="내용을 입력하세요..."
-      className="w-full bg-transparent border-none focus:ring-0 resize-none outline-none text-lg text-slate-800 leading-relaxed min-h-[60px]"
-      rows={1}
-    />
+    <div className="flex flex-col gap-2 relative">
+      <div className="flex items-center gap-1 border-b border-slate-100 pb-2 mb-2 bg-white">
+        <button
+          onClick={() => editor.chain().focus().toggleBold().run()}
+          className={`p-1.5 rounded-lg transition-colors ${editor.isActive('bold') ? 'bg-slate-200 text-slate-900' : 'text-slate-500 hover:bg-slate-100'}`}
+        >
+          <Bold className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+          className={`p-1.5 rounded-lg transition-colors ${editor.isActive('italic') ? 'bg-slate-200 text-slate-900' : 'text-slate-500 hover:bg-slate-100'}`}
+        >
+          <Italic className="w-4 h-4" />
+        </button>
+        <div className="w-px h-5 bg-slate-200 mx-1"></div>
+        <button
+          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+          className={`p-1.5 rounded-lg transition-colors ${editor.isActive('heading', { level: 2 }) ? 'bg-slate-200 text-slate-900' : 'text-slate-500 hover:bg-slate-100'}`}
+        >
+          <Heading2 className="w-4 h-4" />
+        </button>
+        <div className="w-px h-5 bg-slate-200 mx-1"></div>
+        
+        <div className="relative">
+          <button
+            onClick={() => setShowColorPicker(!showColorPicker)}
+            className={`p-1.5 rounded-lg transition-colors text-slate-500 hover:bg-slate-100 ${showColorPicker ? 'bg-slate-200' : ''}`}
+          >
+            <Palette className="w-4 h-4" />
+          </button>
+          {showColorPicker && (
+            <div className="absolute top-full left-0 mt-1 p-2 bg-white border border-slate-200 rounded-xl shadow-lg flex gap-1 z-50">
+              {colors.map(color => (
+                <button
+                  key={color}
+                  onClick={() => {
+                    editor.chain().focus().setColor(color).run()
+                    setShowColorPicker(false)
+                  }}
+                  className="w-6 h-6 rounded-full border border-slate-200 hover:scale-110 transition-transform"
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+              <button
+                onClick={() => {
+                  editor.chain().focus().unsetColor().run()
+                  setShowColorPicker(false)
+                }}
+                className="w-6 h-6 rounded-full border border-slate-200 flex items-center justify-center text-xs text-slate-400 hover:bg-slate-50"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+      
+      <EditorContent editor={editor} />
+    </div>
   )
 }
 
