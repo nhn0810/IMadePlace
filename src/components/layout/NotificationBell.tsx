@@ -103,12 +103,12 @@ export function NotificationBell({ userId }: { userId: string }) {
     }
   }
 
-  async function markAsRead(id: string) {
+  async function handleClickNotification(id: string) {
     // Optimistically remove from UI
     setNotifications(prev => prev.filter(n => n.id !== id))
     
-    // Update DB
-    await supabase.from('notifications').update({ is_read: true }).eq('id', id)
+    // Update DB: Delete notification upon reading, as requested
+    await supabase.from('notifications').delete().eq('id', id)
   }
 
   async function deleteNotification(id: string, e: React.MouseEvent) {
@@ -156,7 +156,7 @@ export function NotificationBell({ userId }: { userId: string }) {
                   <div 
                     key={notification.id}
                     onClick={() => {
-                        if (!notification.is_read) markAsRead(notification.id)
+                        handleClickNotification(notification.id)
                         setIsOpen(false)
                     }}
                     className={`block p-4 border-b last:border-0 border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer bg-emerald-50/30 relative group`}

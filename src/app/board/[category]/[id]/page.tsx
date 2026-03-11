@@ -96,8 +96,25 @@ export default async function PostDetailPage({ params }: { params: { category: s
     redirect(`/board/${category}`)
   }
 
+  // Handle Author Delete
+  async function deletePost() {
+    'use server'
+    const supabaseAction = await createClient()
+    const { data: { session: aSession } } = await supabaseAction.auth.getSession()
+    if (!aSession) return
+
+    if (aSession.user.id !== post.author_id) return
+
+    await supabaseAction.from('posts').delete().eq('id', id)
+    redirect(`/board/${category}`)
+  }
+
   const isGuest = profile?.role === 'guest'
   const isAdminOrMaster = profile?.role === 'master' || profile?.role === 'admin'
+  const isAuthor = session?.user.id === post.author_id
+  const isCollaborator = post.collaborator_ids?.includes(session?.user.id)
+  const canEdit = isAuthor || isCollaborator
+  const canDelete = isAuthor
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-10 bg-white min-h-screen">
@@ -109,14 +126,27 @@ export default async function PostDetailPage({ params }: { params: { category: s
           <ArrowLeft className="w-4 h-4" />
           목록으로 돌아가기
         </Link>
-
-        {isAdminOrMaster && (
-          <form action={adminDeletePost}>
-            <button className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-sm font-bold transition-colors">
-              관리자 직권 삭제
-            </button>
-          </form>
-        )}
+        <div className="flex items-center gap-2">
+          {canEdit && (
+            <Link href={`/board/${category}/${id}/edit`} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition-colors">
+              수정
+            </Link>
+          )}
+          {canDelete && (
+             <form action={deletePost}>
+                <button className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-sm font-bold transition-colors">
+                  삭제
+                </button>
+             </form>
+          )}
+          {isAdminOrMaster && !isAuthor && (
+            <form action={adminDeletePost}>
+              <button className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-sm font-bold transition-colors">
+                관리자 직권 삭제
+              </button>
+            </form>
+          )}
+        </div>
       </div>
 
       <header className="mb-10 pb-8 border-b border-slate-200">

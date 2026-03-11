@@ -50,6 +50,7 @@ export function SortableBlockItem({
       {/* Drag Handle & Delete */}
       <div className="absolute -left-12 top-2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
+          type="button"
           {...attributes}
           {...listeners}
           className="p-2 text-slate-400 hover:text-slate-700 bg-white border border-slate-200 rounded-lg shadow-sm cursor-grab active:cursor-grabbing"
@@ -60,6 +61,7 @@ export function SortableBlockItem({
       </div>
 
       <button
+        type="button"
         onClick={(e) => {
           e.stopPropagation()
           onDelete()
@@ -110,12 +112,14 @@ function TextBlock({ content, onChange }: { content: string, onChange: (v: strin
     <div className="flex flex-col gap-2 relative">
       <div className="flex items-center gap-1 border-b border-slate-100 pb-2 mb-2 bg-white">
         <button
+          type="button"
           onClick={() => editor.chain().focus().toggleBold().run()}
           className={`p-1.5 rounded-lg transition-colors ${editor.isActive('bold') ? 'bg-slate-200 text-slate-900' : 'text-slate-500 hover:bg-slate-100'}`}
         >
           <Bold className="w-4 h-4" />
         </button>
         <button
+          type="button"
           onClick={() => editor.chain().focus().toggleItalic().run()}
           className={`p-1.5 rounded-lg transition-colors ${editor.isActive('italic') ? 'bg-slate-200 text-slate-900' : 'text-slate-500 hover:bg-slate-100'}`}
         >
@@ -123,6 +127,7 @@ function TextBlock({ content, onChange }: { content: string, onChange: (v: strin
         </button>
         <div className="w-px h-5 bg-slate-200 mx-1"></div>
         <button
+          type="button"
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
           className={`p-1.5 rounded-lg transition-colors ${editor.isActive('heading', { level: 2 }) ? 'bg-slate-200 text-slate-900' : 'text-slate-500 hover:bg-slate-100'}`}
         >
@@ -132,6 +137,7 @@ function TextBlock({ content, onChange }: { content: string, onChange: (v: strin
         
         <div className="relative">
           <button
+            type="button"
             onClick={() => setShowColorPicker(!showColorPicker)}
             className={`p-1.5 rounded-lg transition-colors text-slate-500 hover:bg-slate-100 ${showColorPicker ? 'bg-slate-200' : ''}`}
           >
@@ -141,6 +147,7 @@ function TextBlock({ content, onChange }: { content: string, onChange: (v: strin
             <div className="absolute top-full left-0 mt-1 p-2 bg-white border border-slate-200 rounded-xl shadow-lg flex gap-1 z-50">
               {colors.map(color => (
                 <button
+                  type="button"
                   key={color}
                   onClick={() => {
                     editor.chain().focus().setColor(color).run()
@@ -151,6 +158,7 @@ function TextBlock({ content, onChange }: { content: string, onChange: (v: strin
                 />
               ))}
               <button
+                type="button"
                 onClick={() => {
                   editor.chain().focus().unsetColor().run()
                   setShowColorPicker(false)
@@ -201,7 +209,7 @@ function VerticalImageBlock({ content, onChange }: { content: string[], onChange
            {content.map((url, i) => (
              <div key={i} className="relative group/img rounded-xl overflow-hidden border border-slate-200">
                <img src={url} alt={`img-${i}`} className="w-full object-cover" />
-               <button onClick={() => removeImage(i)} className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-lg opacity-0 group-hover/img:opacity-100 transition-opacity"><X className="w-4 h-4"/></button>
+               <button type="button" onClick={() => removeImage(i)} className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-lg opacity-0 group-hover/img:opacity-100 transition-opacity"><X className="w-4 h-4"/></button>
              </div>
            ))}
            {content.length === 0 && (
@@ -246,7 +254,7 @@ function SwipeImageBlock({ content, onChange }: { content: string[], onChange: (
            {content.map((url, i) => (
              <div key={i} className="relative group/img rounded-xl overflow-hidden border border-slate-200 flex-shrink-0 w-[80%] snap-center">
                <img src={url} alt={`img-${i}`} className="w-full h-auto object-cover" />
-               <button onClick={() => removeImage(i)} className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-lg opacity-0 group-hover/img:opacity-100 transition-opacity"><X className="w-4 h-4"/></button>
+               <button type="button" onClick={() => removeImage(i)} className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-lg opacity-0 group-hover/img:opacity-100 transition-opacity"><X className="w-4 h-4"/></button>
              </div>
            ))}
            {content.length === 0 && (
@@ -301,10 +309,10 @@ function PollBlock({ content, onChange }: { content: any, onChange: (v: any) => 
                 onChange={(e) => updateOption(opt.id, e.target.value)}
                 className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
-              <button onClick={() => removeOption(opt.id)} className="p-3 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl"><X className="w-4 h-4"/></button>
+              <button type="button" onClick={() => removeOption(opt.id)} className="p-3 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl"><X className="w-4 h-4"/></button>
             </div>
          ))}
-         <button onClick={addOption} className="mt-2 flex items-center justify-center gap-2 py-3 border-2 border-dashed border-slate-200 text-slate-500 hover:border-emerald-300 hover:text-emerald-600 rounded-xl transition-all font-medium text-sm">
+         <button type="button" onClick={addOption} className="mt-2 flex items-center justify-center gap-2 py-3 border-2 border-dashed border-slate-200 text-slate-500 hover:border-emerald-300 hover:text-emerald-600 rounded-xl transition-all font-medium text-sm">
            <Plus className="w-4 h-4" /> 선택지 추가
          </button>
        </div>
