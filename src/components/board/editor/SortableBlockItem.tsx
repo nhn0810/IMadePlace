@@ -177,23 +177,28 @@ function TextBlock({ content, onChange }: { content: string, onChange: (v: strin
   )
 }
 
-function VerticalImageBlock({ content, onChange }: { content: string[], onChange: (v: string[]) => void }) {
+function VerticalImageBlock({ content, onChange }: { content: any, onChange: (v: any) => void }) {
   const [isUploading, setIsUploading] = useState(false)
   const [isDragActive, setIsDragActive] = useState(false)
+
+  // Normalize legacy string[] to new object structure
+  const normalizedContent = Array.isArray(content) && (content.length === 0 || typeof content[0] === 'string')
+    ? content.map(url => ({ url, caption: '' }))
+    : content || []
 
   const processFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return
     setIsUploading(true)
-    const urls = [...content]
+    const newItems = [...normalizedContent]
     
     try {
       for (let i = 0; i < files.length; i++) {
           if (!files[i].type.startsWith('image/')) continue
           if (files[i].size > 5 * 1024 * 1024) continue
           const url = await uploadImage(files[i])
-          if (url) urls.push(url)
+          if (url) newItems.push({ url, caption: '' })
       }
-      onChange(urls)
+      onChange(newItems)
     } catch (err: any) {
       alert('이미지 업로드에 실패했습니다. 버킷 권한이나 설정을 확인해주세요: ' + err.message)
     } finally {
@@ -223,7 +228,13 @@ function VerticalImageBlock({ content, onChange }: { content: string[], onChange
   }
 
   const removeImage = (index: number) => {
-    onChange(content.filter((_, i) => i !== index))
+    onChange(normalizedContent.filter((_: any, i: number) => i !== index))
+  }
+
+  const updateCaption = (index: number, caption: string) => {
+    const updated = [...normalizedContent]
+    updated[index] = { ...updated[index], caption }
+    onChange(updated)
   }
 
   return (
@@ -242,13 +253,22 @@ function VerticalImageBlock({ content, onChange }: { content: string[], onChange
          onDragLeave={handleDragLeave}
          onDrop={handleDrop}
        >
-           {content.map((url, i) => (
-             <div key={i} className="relative group/img rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
-               <img src={url} alt={`img-${i}`} className="w-full object-cover" />
-               <button type="button" onClick={() => removeImage(i)} className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-lg opacity-0 group-hover/img:opacity-100 transition-opacity"><X className="w-4 h-4"/></button>
+           {normalizedContent.map((item: any, i: number) => (
+             <div key={i} className="relative group/img rounded-xl overflow-hidden border border-slate-200 bg-slate-50 flex flex-col p-2 gap-2">
+               <div className="relative rounded-lg overflow-hidden">
+                 <img src={item.url} alt={`img-${i}`} className="w-full object-cover" />
+                 <button type="button" onClick={() => removeImage(i)} className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-lg opacity-0 group-hover/img:opacity-100 transition-opacity"><X className="w-4 h-4"/></button>
+               </div>
+               <input 
+                 type="text" 
+                 value={item.caption || ''} 
+                 onChange={(e) => updateCaption(i, e.target.value)} 
+                 placeholder="이미지 설명을 입력하세요... (선택)" 
+                 className="w-full text-sm font-medium text-slate-600 bg-transparent border-none outline-none focus:ring-0 px-2 py-1 placeholder:text-slate-300" 
+               />
              </div>
            ))}
-           {content.length === 0 && !isDragActive && (
+           {normalizedContent.length === 0 && !isDragActive && (
              <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center text-slate-400 gap-2 h-full">
                 <ImageIcon className="w-8 h-8 opacity-50" />
                 <span className="text-sm">버튼을 누르거나 이미지를 이 곳에 드래그하여 드롭하세요</span>
@@ -265,14 +285,19 @@ function VerticalImageBlock({ content, onChange }: { content: string[], onChange
   )
 }
 
-function SwipeImageBlock({ content, onChange }: { content: string[], onChange: (v: string[]) => void }) {
+function SwipeImageBlock({ content, onChange }: { content: any, onChange: (v: any) => void }) {
   const [isUploading, setIsUploading] = useState(false)
   const [isDragActive, setIsDragActive] = useState(false)
+
+  // Normalize legacy string[] to new object structure
+  const normalizedContent = Array.isArray(content)
+    ? { urls: content, caption: '' }
+    : content || { urls: [], caption: '' }
 
   const processFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return
     setIsUploading(true)
-    const urls = [...content]
+    const urls = [...normalizedContent.urls]
     try {
       for (let i = 0; i < files.length; i++) {
           if (!files[i].type.startsWith('image/')) continue
@@ -280,7 +305,7 @@ function SwipeImageBlock({ content, onChange }: { content: string[], onChange: (
           const url = await uploadImage(files[i])
           if (url) urls.push(url)
       }
-      onChange(urls)
+      onChange({ ...normalizedContent, urls })
     } catch (err: any) {
       alert('이미지 업로드에 실패했습니다. 버킷 권한이나 설정을 확인해주세요: ' + err.message)
     } finally {
@@ -310,7 +335,7 @@ function SwipeImageBlock({ content, onChange }: { content: string[], onChange: (
   }
 
   const removeImage = (index: number) => {
-    onChange(content.filter((_, i) => i !== index))
+    onChange({ ...normalizedContent, urls: normalizedContent.urls.filter((_: any, i: number) => i !== index) })
   }
 
   return (
@@ -323,30 +348,41 @@ function SwipeImageBlock({ content, onChange }: { content: string[], onChange: (
               <input type="file" multiple accept="image/*" className="hidden" disabled={isUploading} onChange={handleUpload}/>
            </label>
        </div>
-       <div 
-         className={`flex flex-nowrap overflow-x-auto gap-4 snap-x pb-4 min-h-[120px] rounded-xl transition-colors ${isDragActive ? 'bg-emerald-50 border-2 border-emerald-300 border-dashed p-4' : ''}`}
-         onDragOver={handleDragOver}
-         onDragLeave={handleDragLeave}
-         onDrop={handleDrop}
-       >
-           {content.map((url, i) => (
-             <div key={i} className="relative group/img rounded-xl overflow-hidden border border-slate-200 flex-shrink-0 w-[80%] snap-center bg-slate-100">
-               <img src={url} alt={`img-${i}`} className="w-full h-auto object-cover" />
-               <button type="button" onClick={() => removeImage(i)} className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-lg opacity-0 group-hover/img:opacity-100 transition-opacity"><X className="w-4 h-4"/></button>
-             </div>
-           ))}
-           {content.length === 0 && !isDragActive && (
-             <div className="w-full bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center text-slate-400 gap-2 h-[120px]">
-                <ImageIcon className="w-8 h-8 opacity-50" />
-                <span className="text-sm">버튼을 누르거나 이미지를 이 곳에 드래그하여 드롭하세요</span>
-             </div>
-           )}
-           {isDragActive && (
-             <div className="w-full flex flex-col items-center justify-center text-emerald-500 font-bold gap-2">
-                <ImageIcon className="w-8 h-8 animate-bounce" />
-                <span className="text-sm">여기에 이미지를 놓으세요!</span>
-             </div>
-           )}
+       <div className="flex flex-col gap-2">
+         <div 
+           className={`flex flex-nowrap overflow-x-auto gap-4 snap-x pb-4 min-h-[120px] rounded-xl transition-colors ${isDragActive ? 'bg-emerald-50 border-2 border-emerald-300 border-dashed p-4' : ''}`}
+           onDragOver={handleDragOver}
+           onDragLeave={handleDragLeave}
+           onDrop={handleDrop}
+         >
+             {normalizedContent.urls.map((url: string, i: number) => (
+               <div key={i} className="relative group/img rounded-xl overflow-hidden border border-slate-200 flex-shrink-0 w-[80%] snap-center bg-slate-100">
+                 <img src={url} alt={`img-${i}`} className="w-full h-auto object-cover" />
+                 <button type="button" onClick={() => removeImage(i)} className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-lg opacity-0 group-hover/img:opacity-100 transition-opacity"><X className="w-4 h-4"/></button>
+               </div>
+             ))}
+             {normalizedContent.urls.length === 0 && !isDragActive && (
+               <div className="w-full bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center text-slate-400 gap-2 h-[120px]">
+                  <ImageIcon className="w-8 h-8 opacity-50" />
+                  <span className="text-sm">버튼을 누르거나 이미지를 이 곳에 드래그하여 드롭하세요</span>
+               </div>
+             )}
+             {isDragActive && (
+               <div className="w-full flex flex-col items-center justify-center text-emerald-500 font-bold gap-2">
+                  <ImageIcon className="w-8 h-8 animate-bounce" />
+                  <span className="text-sm">여기에 이미지를 놓으세요!</span>
+               </div>
+             )}
+         </div>
+         {normalizedContent.urls.length > 0 && (
+           <input 
+             type="text" 
+             value={normalizedContent.caption || ''} 
+             onChange={(e) => onChange({ ...normalizedContent, caption: e.target.value })} 
+             placeholder="이 사진 그룹의 전체 설명을 입력하세요... (선택)" 
+             className="w-full text-center text-sm font-medium text-slate-600 bg-transparent border-none outline-none focus:ring-0 px-2 py-1 placeholder:text-slate-300" 
+           />
+         )}
        </div>
     </div>
   )
