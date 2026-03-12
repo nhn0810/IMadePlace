@@ -257,10 +257,10 @@ export function ChatRoom({
                    <span className="text-[11px] font-black text-slate-400 ml-2 mb-1">{msg.profiles?.display_name || 'Anonymous'}</span>
                 )}
                 <div 
-                  className={`max-w-[75%] w-fit px-4 py-3 bg-white rounded-2xl text-[14px] leading-relaxed shadow-sm whitespace-pre-wrap break-keep [word-break:keep-all]
+                  className={`max-w-[75%] w-fit px-4 py-3 rounded-2xl text-[14px] leading-relaxed shadow-md whitespace-pre-wrap break-keep [word-break:keep-all]
                     ${isMe 
-                      ? 'bg-emerald-500 text-white !rounded-tr-none' 
-                      : 'text-slate-800 border border-slate-100 !rounded-tl-none'
+                      ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white !rounded-tr-none' 
+                      : 'bg-white text-slate-800 border border-slate-100 !rounded-tl-none'
                     }`}
                 >
                   {msg.content}
