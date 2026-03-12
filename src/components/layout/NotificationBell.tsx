@@ -103,13 +103,18 @@ export function NotificationBell({ userId }: { userId: string }) {
     }
   }
 
-  async function handleClickNotification(id: string) {
+  async function handleClickNotification(notif: Notification) {
+    // For rejection notifications, show a popup first
+    if (notif.type === 'apply-rejected') {
+      alert(notif.content)
+    }
+
     // Optimistically remove from UI
-    setNotifications(prev => prev.filter(n => n.id !== id))
+    setNotifications(prev => prev.filter(n => n.id !== notif.id))
     
     // Update DB: Delete notification upon reading, as requested
     try {
-      await supabase.from('notifications').delete().eq('id', id)
+      await supabase.from('notifications').delete().eq('id', notif.id)
     } catch (e) {
       console.error(e)
     }
@@ -160,10 +165,10 @@ export function NotificationBell({ userId }: { userId: string }) {
                   <div 
                     key={notification.id}
                     onClick={() => {
-                        handleClickNotification(notification.id)
+                        handleClickNotification(notification)
                         setIsOpen(false)
                     }}
-                    className={`block p-4 border-b last:border-0 border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer bg-emerald-50/30 relative group`}
+                    className={`block p-4 border-b last:border-0 border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer bg-emerald-50/20 relative group`}
                   >
                     <button
                       onClick={(e) => deleteNotification(notification.id, e)}
@@ -178,25 +183,31 @@ export function NotificationBell({ userId }: { userId: string }) {
                         className="block w-full h-full pr-6"
                         onClick={(e) => {
                           // Allow navigation but still trigger delete
-                          handleClickNotification(notification.id)
+                          handleClickNotification(notification)
                           setIsOpen(false)
                         }}
                       >
-                         <div className="text-sm text-slate-800 font-medium mb-1">
-                           {notification.type === 'announcement' ? '📢 공지사항' : '💬 새 알림'}
+                         <div className="text-sm text-slate-800 font-bold mb-1 flex items-center gap-1.5">
+                           {notification.type === 'announcement' ? '📢 공지사항' : 
+                            notification.type === 'apply-request' ? '🤝 새 신청 발생' :
+                            notification.type === 'apply-accepted' ? '🎉 신청 수락됨' :
+                            notification.type === 'apply-rejected' ? '❌ 신청 거절됨' :
+                            notification.type === 'group-message' ? '💬 단체 메시지' : '🔔 알림'}
+                           {!notification.is_read && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>}
                          </div>
-                         <p className="text-sm text-slate-600 line-clamp-2">{notification.content}</p>
+                         <p className="text-[13px] text-slate-600 line-clamp-2 leading-snug">{notification.content}</p>
                          <div className="text-xs text-slate-400 mt-2">
                            {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                          </div>
                       </Link>
                     ) : (
                       <div className="pr-6">
-                         <div className="text-sm text-slate-800 font-medium mb-1">
-                           {notification.type === 'announcement' ? '📢 공지사항' : '🔔 알림'}
+                         <div className="text-sm text-slate-800 font-bold mb-1 flex items-center gap-1.5">
+                            {notification.type === 'apply-rejected' ? '❌ 신청 거절됨' : '🔔 알림'}
+                            {!notification.is_read && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>}
                          </div>
-                         <p className="text-sm text-slate-600 line-clamp-2">{notification.content}</p>
-                         <div className="text-xs text-slate-400 mt-2">
+                         <p className="text-[13px] text-slate-600 line-clamp-2 leading-snug">{notification.content}</p>
+                         <div className="text-[11px] text-slate-400 mt-2 font-medium">
                            {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                          </div>
                       </div>

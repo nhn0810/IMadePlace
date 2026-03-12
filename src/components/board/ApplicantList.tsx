@@ -54,34 +54,56 @@ export function ApplicantList({
 
     setLoadingId(participantId)
     
-    // Update participant status and reason
-    const { error } = await supabase
-      .from('project_participants')
-      .update({ status: newStatus, status_message: reason.trim() })
-      .eq('id', participantId)
+    if (newStatus === 'accepted') {
+      // Update participant status and reason
+      const { error } = await supabase
+        .from('project_participants')
+        .update({ status: newStatus, status_message: reason.trim() })
+        .eq('id', participantId)
 
-    if (!error) {
-       setParticipants(prev => 
-         prev.map(p => p.id === participantId ? { ...p, status: newStatus, status_message: reason.trim() } : p)
-       )
-       
-       // Handle side-effects (e.g. adding them to the collaborator_ids of the post)
-       if (newStatus === 'accepted') {
-           // Fetch the current post to get collaborator_ids
-           const { data: post } = await supabase.from('posts').select('collaborator_ids').eq('id', postId).single()
-           if (post) {
-               const pList = participants.find(p => p.id === participantId)
-               const currentIds = post.collaborator_ids || []
-               if (pList && !currentIds.includes(pList.user_id)) {
-                   await supabase.from('posts').update({
-                       collaborator_ids: [...currentIds, pList.user_id]
-                   }).eq('id', postId)
-               }
-           }
-       }
+      if (!error) {
+         setParticipants(prev => 
+           prev.map(p => p.id === participantId ? { ...p, status: newStatus, status_message: reason.trim() } : p)
+         )
+         
+         // Fetch the current post to get collaborator_ids
+         const { data: post } = await supabase.from('posts').select('collaborator_ids, title').eq('id', postId).single()
+         if (post) {
+             const pList = participants.find(p => p.id === participantId)
+             const currentIds = post.collaborator_ids || []
+             if (pList && !currentIds.includes(pList.user_id)) {
+                 await supabase.from('posts').update({
+                     collaborator_ids: [...currentIds, pList.user_id]
+                 }).eq('id', postId)
+             }
+         }
+      }
     } else {
-       alert('상태 업데이트 중 오류가 발생했습니다.')
+      // REJECTED: Delete and notify
+      const pList = participants.find(p => p.id === participantId)
+      if (pList) {
+        // 1. Create rejection notification
+        const { data: post } = await supabase.from('posts').select('title').eq('id', postId).single()
+        await supabase.from('notifications').insert({
+          user_id: pList.user_id,
+          sender_id: (await supabase.auth.getUser()).data.user?.id,
+          type: 'apply-rejected',
+          content: `[${post?.title || '프로젝트'}] 신청이 거절되었습니다. 사유: ${reason.trim()}`,
+          link: null // Popup handled via notification bell
+        })
+
+        // 2. Delete entry
+        const { error } = await supabase
+          .from('project_participants')
+          .delete()
+          .eq('id', participantId)
+
+        if (!error) {
+          setParticipants(prev => prev.filter(p => p.id !== participantId))
+        }
+      }
     }
+
     setLoadingId(null)
     setActionState(null)
     setReason('')

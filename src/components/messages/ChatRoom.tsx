@@ -2,263 +2,298 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Send } from 'lucide-react'
+import { Send, Users, ShieldAlert, Timer } from 'lucide-react'
 import { subDays, formatISO } from 'date-fns'
 
-// Auto-prune and insert the latest message notification
-async function triggerNotification(senderId: string, receiverId: string, message: string) {
-  const supabase = createClient()
-  
-  // 1. Remove previous 'message' notification from this sender to keep DB clean
-  await supabase.from('notifications')
-    .delete()
-    .eq('user_id', receiverId)
-    .eq('sender_id', senderId)
-    .eq('type', 'message')
-    
-  // 2. Insert new 'latest' notification
-  await supabase.from('notifications')
-    .insert({
-      user_id: receiverId,
-      sender_id: senderId,
-      type: 'message',
-      content: `새 메시지: ${message.length > 20 ? message.substring(0, 20) + '...' : message}`,
-      link: `/messages/${senderId}`
-    })
+type Message = {
+  id: string
+  sender_id: string
+  receiver_id: string | null
+  room_id: string | null
+  content: string
+  created_at: string
+  profiles?: { display_name: string, avatar_url: string }
 }
 
-export function ChatRoom({ currentUserId, otherUserId, isBlockedByMe, isBlockedByThem, markAsReadAction }: { currentUserId: string, otherUserId: string, isBlockedByMe?: boolean, isBlockedByThem?: boolean, markAsReadAction?: () => Promise<void> }) {
+export function ChatRoom({ 
+  currentUserId, 
+  otherUserId, // For 1:1, this is the other user. For Group, this might be null or the room_id
+  roomId,      // If provided, this is a Group Chat (Project ID)
+  isBlockedByMe,
+  isBlockedByThem,
+  isProjectComplete,
+  markAsReadAction 
+}: { 
+  currentUserId: string, 
+  otherUserId?: string | null, 
+  roomId?: string | null,
+  isBlockedByMe?: boolean, 
+  isBlockedByThem?: boolean,
+  isProjectComplete?: boolean,
+  markAsReadAction?: () => Promise<void> 
+}) {
   const [messages, setMessages] = useState<any[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
-  
-  const [isOtherTyping, setIsOtherTyping] = useState(false)
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [participants, setParticipants] = useState<any[]>([])
+  const [readStatuses, setReadStatuses] = useState<Record<string, string>>({}) // userId -> lastReadAt
   
   const bottomRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
   
-  // Deriving a consistent room ID for broadcast channels
-  const roomId = [currentUserId, otherUserId].sort().join('-')
+  const activeRoomId = roomId || [currentUserId, otherUserId].sort().join('-')
+  const isGroup = !!roomId
 
   useEffect(() => {
-    fetchInitialMessages()
-    if (markAsReadAction) {
-      markAsReadAction().catch(console.error)
-    }
+    fetchInitialData()
+    if (markAsReadAction) markAsReadAction().catch(console.error)
+
+    // Listen for messages in this specific room or DM pair
+    const filter = isGroup 
+      ? `room_id=eq.${activeRoomId}`
+      : `and(sender_id.in.("${currentUserId}","${otherUserId}"),receiver_id.in.("${currentUserId}","${otherUserId}"))`
 
     const channel = supabase
-      .channel('messages_channel')
+      .channel(`room:${activeRoomId}`)
       .on(
         'postgres_changes',
         {
-          event: '*', // Listen to INSERT, UPDATE, DELETE
+          event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `receiver_id=eq.${currentUserId}`
+          filter: isGroup ? `room_id=eq.${activeRoomId}` : undefined
         },
-        (payload) => {
-          if (payload.eventType === 'INSERT' && payload.new.sender_id === otherUserId) {
-            setMessages((prev) => {
-              if (prev.find(m => m.id === payload.new.id)) return prev
-              return [...prev, payload.new]
-            })
-            if (markAsReadAction) {
-              markAsReadAction().catch(console.error)
-            }
-          } else if (payload.eventType === 'UPDATE') {
-            setMessages((prev) => prev.map(m => m.id === payload.new.id ? payload.new : m))
+        async (payload) => {
+          // Additional filter for 1:1 since the filter string doesn't support complex 'and/in' perfectly in all versions
+          if (!isGroup) {
+             const m = payload.new
+             if (!((m.sender_id === currentUserId && m.receiver_id === otherUserId) || (m.sender_id === otherUserId && m.receiver_id === currentUserId))) return
           }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen to INSERT, UPDATE, DELETE
-          schema: 'public',
-          table: 'messages',
-          filter: `sender_id=eq.${currentUserId}`
-        },
-        (payload) => {
-          if (payload.eventType === 'INSERT' && payload.new.receiver_id === otherUserId) {
-            // New message sent by me
-            setMessages((prev) => {
-              if (prev.find(m => m.id === payload.new.id)) return prev
-              return [...prev, payload.new]
-            })
-          } else if (payload.eventType === 'UPDATE') {
-             // If my message got updated (e.g. marked as read by the other person, OR me marking my own self-message as read)
-             setMessages((prev) => prev.map(m => m.id === payload.new.id ? payload.new : m))
-          }
-        }
-      )
-      .subscribe()
 
-    // Setup Broadcast Channel for typing indicators
-    const typingChannel = supabase.channel(`typing:${roomId}`)
-      .on(
-        'broadcast',
-        { event: 'typing' },
-        (payload) => {
-          if (payload.payload.userId === otherUserId) {
-             setIsOtherTyping(payload.payload.isTyping)
+          // Fetch profile if it's not present (useful for group chats)
+          let msgWithProfile = payload.new
+          if (isGroup && payload.new.sender_id !== currentUserId) {
+            const { data: profile } = await supabase.from('profiles').select('display_name, avatar_url').eq('id', payload.new.sender_id).single()
+            msgWithProfile = { ...payload.new, profiles: profile }
           }
+
+          setMessages((prev) => {
+            if (prev.find(m => m.id === payload.new.id)) return prev
+            return [...prev, msgWithProfile]
+          })
+          
+          if (payload.new.sender_id !== currentUserId && markAsReadAction) {
+            markAsReadAction()
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'messages' }, // Need to monitor for read triggers if using column-based
+        (payload) => {
+           // update local if necessary
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'chat_room_reads', filter: `room_id=eq.${activeRoomId}` },
+        (payload) => {
+           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+             setReadStatuses(prev => ({ ...prev, [payload.new.user_id]: payload.new.last_read_at }))
+           }
         }
       )
       .subscribe()
 
     return () => {
       supabase.removeChannel(channel)
-      supabase.removeChannel(typingChannel)
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
     }
-  }, [currentUserId, otherUserId, roomId])
+  }, [currentUserId, otherUserId, activeRoomId, isGroup])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  async function fetchInitialMessages() {
+  async function fetchInitialData() {
     const twoWeeksAgo = formatISO(subDays(new Date(), 14))
-    const { data } = await supabase
-      .from('messages')
-      .select('*')
-      .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${currentUserId})`)
+    
+    // 1. Fetch Messages
+    let query = supabase.from('messages').select('*, profiles:sender_id(display_name, avatar_url)')
+    
+    if (isGroup) {
+      query = query.eq('room_id', activeRoomId)
+    } else {
+      query = query.or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${currentUserId})`)
+    }
+
+    const { data: mData } = await query
       .gte('created_at', twoWeeksAgo)
       .order('created_at', { ascending: true })
 
-    if (data) {
-      setMessages(data)
+    if (mData) setMessages(mData)
+
+    // 2. Fetch Participants & Read Statuses if Group
+    if (isGroup) {
+      const { data: post } = await supabase.from('posts').select('author_id, collaborator_ids').eq('id', activeRoomId).single()
+      if (post) {
+        const allMemberIds = [post.author_id, ...(post.collaborator_ids || [])]
+        const { data: pData } = await supabase.from('profiles').select('id, display_name, avatar_url').in('id', allMemberIds)
+        if (pData) setParticipants(pData)
+        
+        const { data: rData } = await supabase.from('chat_room_reads').select('*').eq('room_id', activeRoomId)
+        const readMap: Record<string, string> = {}
+        rData?.forEach(r => { readMap[r.user_id] = r.last_read_at })
+        setReadStatuses(readMap)
+      }
     }
-  }
-
-  const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setNewMessage(e.target.value)
-
-    // Broadcast that we are typing
-    supabase.channel(`typing:${roomId}`).send({
-      type: 'broadcast',
-      event: 'typing',
-      payload: { userId: currentUserId, isTyping: true },
-    })
-
-    // Clear existing timeout
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current)
-    }
-
-    // Set a timeout to send isTyping: false after 5 seconds of inactivity
-    typingTimeoutRef.current = setTimeout(() => {
-      supabase.channel(`typing:${roomId}`).send({
-        type: 'broadcast',
-        event: 'typing',
-        payload: { userId: currentUserId, isTyping: false },
-      })
-    }, 5000)
   }
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newMessage.trim() || isBlockedByMe || isBlockedByThem) return
+    if (!newMessage.trim() || isBlockedByMe || isBlockedByThem || isProjectComplete) return
 
     const content = newMessage.trim()
     setNewMessage('')
     setIsSending(true)
     
-    // Immediately stop typing indicator on send
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
-    supabase.channel(`typing:${roomId}`).send({
-        type: 'broadcast',
-        event: 'typing',
-        payload: { userId: currentUserId, isTyping: false },
-    })
-
-    const { data, error } = await supabase.from('messages').insert({
+    const payload: any = {
       sender_id: currentUserId,
-      receiver_id: otherUserId,
       content,
-    }).select().single()
+    }
+
+    if (isGroup) {
+      payload.room_id = activeRoomId
+    } else {
+      payload.receiver_id = otherUserId
+    }
+
+    const { data, error } = await supabase.from('messages').insert(payload).select('*, profiles:sender_id(display_name, avatar_url)').single()
 
     if (error) {
-      alert('Failed to send message')
+      alert('메시지 전송 실패: ' + error.message)
       setNewMessage(content) 
     } else if (data) {
-      setMessages(prev => {
-        if (prev.find(m => m.id === data.id)) return prev
-        return [...prev, data]
-      })
-      triggerNotification(currentUserId, otherUserId, content)
+      setMessages(prev => [...prev, data])
+      // Update our own read status
+      if (isGroup) {
+        await supabase.from('chat_room_reads').upsert({ room_id: activeRoomId, user_id: currentUserId, last_read_at: new Date().toISOString() })
+      }
     }
 
     setIsSending(false)
   }
 
+  const getUnreadCount = (msgCreatedAt: string) => {
+    if (!isGroup) return 0 // 1:1 uses is_read on message
+    const totalExcludingMe = participants.length - 1
+    if (totalExcludingMe <= 0) return 0
+    
+    let readCount = 0
+    Object.entries(readStatuses).forEach(([uid, lastRead]) => {
+      if (uid !== currentUserId && new Date(lastRead) >= new Date(msgCreatedAt)) {
+        readCount++
+      }
+    })
+    const unread = totalExcludingMe - readCount
+    return unread > 0 ? unread : 0
+  }
+
   return (
-    <div className="flex flex-col h-full bg-slate-50 relative">
+    <div className="flex flex-col h-full bg-slate-50 relative border rounded-2xl overflow-hidden shadow-inner">
+      {/* Header Info */}
+      <div className="bg-white border-b border-slate-100 p-3 px-4 flex items-center justify-between">
+         <div className="flex items-center gap-3">
+            {isGroup ? (
+              <>
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-sm border border-emerald-50">
+                  <Users className="w-4 h-4" />
+                </div>
+                <div>
+                   <span className="text-sm font-black text-slate-800">프로젝트 단체 채팅방</span>
+                   <div className="text-[10px] text-slate-400 font-bold flex items-center gap-1">
+                      <span className="w-1 h-1 bg-emerald-400 rounded-full animate-pulse"></span>
+                      {participants.length}명 참여 중
+                   </div>
+                </div>
+              </>
+            ) : (
+                <span className="text-sm font-black text-slate-800">1:1 메시지</span>
+            )}
+         </div>
+      </div>
+
+      {/* Persistence Disclaimer */}
+      <div className="bg-amber-50/80 border-b border-amber-100 px-4 py-2 flex items-center gap-2">
+         <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+         <span className="text-[10px] sm:text-[11px] font-bold text-amber-700 leading-none">
+            본 채팅 내역은 2주 동안만 유지됩니다. 중요한 협업은 디스코드나 슬랙 사용을 권장합니다.
+         </span>
+      </div>
+
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-slate-400 text-sm">
-            Say hi! 👋 Start the conversation.
+          <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-2">
+             <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
+                <Send className="w-5 h-5 opacity-20" />
+             </div>
+             <p className="text-xs font-bold">첫 메시지를 보내보세요!</p>
           </div>
         ) : (
           messages.map((msg, i) => {
             const isMe = msg.sender_id === currentUserId
+            const unread = isGroup ? getUnreadCount(msg.created_at) : (isMe && !msg.is_read ? 1 : 0)
+
             return (
-              <div key={msg.id || i} className={`flex ${isMe ? 'justify-end' : 'justify-start'} items-end gap-1 mb-2`}>
-                {isMe && !msg.is_read && (
-                  <span className="text-[10px] text-emerald-500 font-bold mb-1">1</span>
+              <div key={msg.id || i} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} gap-1 mb-2`}>
+                {!isMe && isGroup && (
+                   <span className="text-[10px] font-bold text-slate-400 ml-1 mb-0.5">{msg.profiles?.display_name || 'Anonymous'}</span>
                 )}
-                
-                <div 
-                  className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-[15px] leading-relaxed shadow-sm
-                    ${isMe 
-                      ? 'bg-emerald-500 text-white rounded-tr-sm' 
-                      : 'bg-white text-slate-800 border border-slate-100 rounded-tl-sm'
-                    }`}
-                >
-                  {msg.content}
+                <div className={`flex ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end gap-2`}>
+                  <div 
+                    className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed shadow-sm
+                      ${isMe 
+                        ? 'bg-emerald-500 text-white rounded-tr-sm' 
+                        : 'bg-white text-slate-800 border border-slate-100 rounded-tl-sm'
+                      }`}
+                  >
+                    {msg.content}
+                  </div>
+                  {unread > 0 && <span className="text-[10px] text-emerald-500 font-black mb-1.5">{unread}</span>}
                 </div>
               </div>
             )
           })
         )}
-        
-        {isOtherTyping && (
-          <div className="flex justify-start">
-            <div className="bg-white border border-slate-100 px-4 py-3 rounded-2xl rounded-tl-sm shadow-sm flex items-center gap-1.5 h-11">
-              <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-              <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-              <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></span>
-            </div>
-          </div>
-        )}
-        
         <div ref={bottomRef} />
       </div>
 
-      <div className="p-4 bg-white border-t border-slate-200">
+      <div className="p-4 bg-white border-t border-slate-100">
         {isBlockedByMe ? (
-          <div className="text-center p-3 text-sm text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
-            해당 사용자를 차단했습니다. 더 이상 메시지를 보낼 수 없습니다.
+          <div className="text-center p-3 text-xs font-bold text-slate-400 bg-slate-50 rounded-xl border border-slate-100">
+            사용자를 차단하여 메시지를 보낼 수 없습니다.
           </div>
         ) : isBlockedByThem ? (
-          <div className="text-center p-3 text-sm text-rose-500 bg-rose-50 rounded-xl border border-rose-100">
-            메시지를 보낼 수 없는 사용자입니다.
+          <div className="text-center p-3 text-xs font-bold text-rose-400 bg-rose-50 rounded-xl border border-rose-100">
+            상대방에 의해 차단된 상태입니다.
+          </div>
+        ) : isProjectComplete ? (
+          <div className="text-center p-3 text-xs font-bold text-slate-400 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-center gap-2">
+            <Timer className="w-3.5 h-3.5" /> 프로젝트가 종료되어 채팅이 비활성화되었습니다.
           </div>
         ) : (
           <form onSubmit={handleSend} className="relative flex items-center">
             <input
               type="text"
               value={newMessage}
-              onChange={handleTyping}
-              placeholder="메시지를 입력하세요 (한국어)..."
-              className="w-full bg-slate-100 border-none px-4 py-3.5 pr-14 rounded-full focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-medium text-slate-800"
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="메시지를 입력하세요..."
+              className="w-full bg-slate-100 border-none px-4 py-3 rounded-xl pr-14 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-medium text-slate-800 text-sm"
               autoComplete="off"
             />
             <button
               type="submit"
               disabled={!newMessage.trim() || isSending}
-              className="absolute right-2 p-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full transition-colors disabled:opacity-50 disabled:hover:bg-emerald-500"
+              className="absolute right-2 p-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors disabled:opacity-50"
             >
               <Send className="w-4 h-4" />
             </button>
