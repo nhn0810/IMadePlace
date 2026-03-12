@@ -37,7 +37,6 @@ export function ChatRoom({
   const [newMessage, setNewMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [participants, setParticipants] = useState<any[]>([])
-  const [readStatuses, setReadStatuses] = useState<Record<string, string>>({}) // userId -> lastReadAt
   const [isOtherTyping, setIsOtherTyping] = useState(false)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
@@ -104,23 +103,9 @@ export function ChatRoom({
       )
       .subscribe()
 
-    // 3. Read Statuses
-    const readChannel = supabase.channel(`reads_${activeRoomId}`)
-       .on(
-         'postgres_changes',
-         { event: '*', schema: 'public', table: 'chat_room_reads', filter: `room_id=eq.${activeRoomId}` },
-         (payload) => {
-            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-              setReadStatuses(prev => ({ ...prev, [payload.new.user_id]: payload.new.last_read_at }))
-            }
-         }
-       )
-       .subscribe()
-
     return () => {
       supabase.removeChannel(channel)
       supabase.removeChannel(typingChannel)
-      supabase.removeChannel(readChannel)
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
     }
   }, [currentUserId, otherUserId, activeRoomId, isGroup])
@@ -160,11 +145,6 @@ export function ChatRoom({
         const allMemberIds = Array.from(new Set([post.author_id, ...(post.collaborator_ids || [])]))
         const { data: pData } = await supabase.from('profiles').select('id, display_name, avatar_url').in('id', allMemberIds)
         if (pData) setParticipants(pData)
-        
-        const { data: rData } = await supabase.from('chat_room_reads').select('*').eq('room_id', activeRoomId)
-        const readMap: Record<string, string> = {}
-        rData?.forEach(r => { readMap[r.user_id] = r.last_read_at })
-        setReadStatuses(readMap)
       }
     }
   }
@@ -222,36 +202,21 @@ export function ChatRoom({
     } else if (data) {
       setMessages(prev => [...prev, data])
       if (isGroup) {
-        await supabase.from('chat_room_reads').upsert({ room_id: activeRoomId, user_id: currentUserId, last_read_at: new Date().toISOString() })
+        await updateReadStatus()
       }
     }
 
     setIsSending(false)
   }
 
-  const getUnreadCount = (msgCreatedAt: string) => {
-    if (!isGroup) return 0 
-    const totalExcludingMe = Math.max(0, participants.length - 1)
-    if (totalExcludingMe <= 0) return 0
-    
-    let readCount = 0
-    Object.entries(readStatuses).forEach(([uid, lastRead]) => {
-      if (uid !== currentUserId && new Date(lastRead) >= new Date(msgCreatedAt)) {
-        readCount++
-      }
-    })
-    const unread = totalExcludingMe - readCount
-    return unread > 0 ? unread : 0
-  }
-
   return (
-    <div className="flex flex-col h-full bg-slate-50 relative border rounded-2xl overflow-hidden shadow-inner">
-      <div className="bg-white border-b border-slate-100 p-3 px-4 flex items-center justify-between">
+    <div className="flex flex-col h-full bg-slate-50 relative border-x overflow-hidden">
+      <div className="bg-white border-b border-slate-100 p-3 px-6 flex items-center justify-between shadow-sm z-10">
          <div className="flex items-center gap-3">
             {isGroup ? (
               <>
                 <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-sm border border-emerald-50">
-                  <Users className="w-4 h-4" />
+                   <Users className="w-4 h-4" />
                 </div>
                 <div>
                    <span className="text-sm font-black text-slate-800">프로젝트 단체 채팅방</span>
@@ -267,14 +232,14 @@ export function ChatRoom({
          </div>
       </div>
 
-      <div className="bg-amber-50/80 border-b border-amber-100 px-4 py-2 flex items-center gap-2">
+      <div className="bg-amber-50/80 border-b border-amber-100 px-6 py-2 flex items-center gap-2">
          <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
          <span className="text-[10px] sm:text-[11px] font-bold text-amber-700 leading-none">
             본 채팅 내역은 2주 동안만 유지됩니다. 중요한 협업은 디스코드나 슬랙 사용을 권장합니다.
          </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-2">
              <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
@@ -285,24 +250,20 @@ export function ChatRoom({
         ) : (
           messages.map((msg, i) => {
             const isMe = msg.sender_id === currentUserId
-            const unread = isGroup ? getUnreadCount(msg.created_at) : (isMe && !msg.is_read ? 1 : 0)
 
             return (
-              <div key={msg.id || i} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} gap-1 mb-2`}>
+              <div key={msg.id || i} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} gap-1 mb-4`}>
                 {!isMe && isGroup && (
-                   <span className="text-[10px] font-bold text-slate-400 ml-1 mb-0.5">{msg.profiles?.display_name || 'Anonymous'}</span>
+                   <span className="text-[11px] font-black text-slate-400 ml-2 mb-1">{msg.profiles?.display_name || 'Anonymous'}</span>
                 )}
-                <div className={`flex ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end gap-2`}>
-                  <div 
-                    className={`max-w-[85%] w-fit px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed shadow-sm whitespace-pre-wrap break-words
-                      ${isMe 
-                        ? 'bg-emerald-500 text-white rounded-tr-sm' 
-                        : 'bg-white text-slate-800 border border-slate-100 rounded-tl-sm'
-                      }`}
-                  >
-                    {msg.content}
-                  </div>
-                  {unread > 0 && <span className="text-[10px] text-emerald-500 font-black mb-1.5">{unread}</span>}
+                <div 
+                  className={`max-w-[75%] w-fit px-4 py-3 bg-white rounded-2xl text-[14px] leading-relaxed shadow-sm whitespace-pre-wrap break-keep [word-break:keep-all]
+                    ${isMe 
+                      ? 'bg-emerald-500 text-white !rounded-tr-none' 
+                      : 'text-slate-800 border border-slate-100 !rounded-tl-none'
+                    }`}
+                >
+                  {msg.content}
                 </div>
               </div>
             )
@@ -322,7 +283,7 @@ export function ChatRoom({
         <div ref={bottomRef} />
       </div>
 
-      <div className="p-4 bg-white border-t border-slate-100">
+      <div className="p-6 bg-white border-t border-slate-100 shadow-[0_-4px_12px_rgba(0,0,0,0.02)]">
         {isBlockedByMe ? (
           <div className="text-center p-3 text-xs font-bold text-slate-400 bg-slate-50 rounded-xl border border-slate-100">
             사용자를 차단하여 메시지를 보낼 수 없습니다.
@@ -342,13 +303,13 @@ export function ChatRoom({
               value={newMessage}
               onChange={handleTyping}
               placeholder="메시지를 입력하세요..."
-              className="w-full bg-slate-100 border-none px-4 py-3 rounded-xl pr-14 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-medium text-slate-800 text-sm"
+              className="w-full bg-slate-100 border-none px-5 py-4 rounded-2xl pr-14 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all font-medium text-slate-800 text-sm shadow-inner"
               autoComplete="off"
             />
             <button
               type="submit"
               disabled={!newMessage.trim() || isSending}
-              className="absolute right-2 p-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors disabled:opacity-50"
+              className="absolute right-2 px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition-all disabled:opacity-50 shadow-md active:scale-95"
             >
               <Send className="w-4 h-4" />
             </button>

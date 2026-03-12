@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS public.chat_room_reads (
 -- SELECT POLICY
 DROP POLICY IF EXISTS "Users can access their own messages." ON public.messages;
 DROP POLICY IF EXISTS "Users can access messages for projects they are in." ON public.messages;
+DROP POLICY IF EXISTS "Users can access messages." ON public.messages;
 
 CREATE POLICY "Users can access messages."
   ON public.messages
@@ -177,7 +178,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 6. Indices and Triggers (Safe)
+-- 6. Indices, Triggers and Additional Policies
+-- Ensure users can delete their own notifications
+DROP POLICY IF EXISTS "Users can delete their own notifications" ON public.notifications;
+CREATE POLICY "Users can delete their own notifications"
+  ON public.notifications
+  FOR DELETE
+  USING (user_id = auth.uid());
+
 CREATE UNIQUE INDEX IF NOT EXISTS idx_notif_dedupe_group_msg 
 ON public.notifications (user_id, project_id) 
 WHERE type = 'group-message' AND is_read = FALSE;

@@ -98,7 +98,7 @@ export default async function DMPage({ params }: { params: { userId: string } })
   }
 
   return (
-    <div className="max-w-3xl mx-auto h-[100dvh] flex flex-col bg-slate-50">
+    <div className="max-w-5xl mx-auto h-[100dvh] flex flex-col bg-slate-50">
       <header className="bg-white border-b border-slate-200 p-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
         <div className="flex items-center gap-4">
           <Link href="/messages" className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-full transition-colors">
