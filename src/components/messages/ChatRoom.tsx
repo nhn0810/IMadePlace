@@ -50,6 +50,7 @@ export function ChatRoom({
   useEffect(() => {
     fetchInitialData()
     if (markAsReadAction) markAsReadAction().catch(console.error)
+    if (isGroup) updateReadStatus()
 
     // 1. Listen for MESSAGES
     const channel = supabase
@@ -57,29 +58,35 @@ export function ChatRoom({
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'messages',
         },
         async (payload) => {
-          const m = payload.new
-          const isTargetRoom = isGroup 
-            ? m.room_id === activeRoomId
-            : ((m.sender_id === currentUserId && m.receiver_id === otherUserId) || (m.sender_id === otherUserId && m.receiver_id === currentUserId))
+          if (payload.eventType === 'INSERT') {
+            const m = payload.new
+            const isTargetRoom = isGroup 
+              ? m.room_id === activeRoomId
+              : ((m.sender_id === currentUserId && m.receiver_id === otherUserId) || (m.sender_id === otherUserId && m.receiver_id === currentUserId))
 
-          if (!isTargetRoom) return
+            if (!isTargetRoom) return
 
-          let msgWithProfile = m
-          if (m.sender_id !== currentUserId) {
-            const { data: profile } = await supabase.from('profiles').select('display_name, avatar_url').eq('id', m.sender_id).single()
-            msgWithProfile = { ...m, profiles: profile }
-            if (markAsReadAction) markAsReadAction()
+            let msgWithProfile = m
+            if (m.sender_id !== currentUserId) {
+              const { data: profile } = await supabase.from('profiles').select('display_name, avatar_url').eq('id', m.sender_id).single()
+              msgWithProfile = { ...m, profiles: profile }
+              if (markAsReadAction) markAsReadAction()
+              if (isGroup) updateReadStatus()
+            }
+
+            setMessages((prev) => {
+              if (prev.find(existing => existing.id === m.id)) return prev
+              return [...prev, msgWithProfile]
+            })
+          } else if (payload.eventType === 'UPDATE') {
+            const m = payload.new
+            setMessages((prev) => prev.map(msg => msg.id === m.id ? { ...msg, is_read: m.is_read } : msg))
           }
-
-          setMessages((prev) => {
-            if (prev.find(existing => existing.id === m.id)) return prev
-            return [...prev, msgWithProfile]
-          })
         }
       )
       .subscribe()
@@ -121,6 +128,15 @@ export function ChatRoom({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  async function updateReadStatus() {
+    if (!isGroup) return
+    await supabase.from('chat_room_reads').upsert({ 
+      room_id: activeRoomId, 
+      user_id: currentUserId, 
+      last_read_at: new Date().toISOString() 
+    })
+  }
 
   async function fetchInitialData() {
     const twoWeeksAgo = formatISO(subDays(new Date(), 14))
@@ -278,7 +294,7 @@ export function ChatRoom({
                 )}
                 <div className={`flex ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end gap-2`}>
                   <div 
-                    className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed shadow-sm
+                    className={`max-w-[85%] w-fit px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed shadow-sm whitespace-pre-wrap break-words
                       ${isMe 
                         ? 'bg-emerald-500 text-white rounded-tr-sm' 
                         : 'bg-white text-slate-800 border border-slate-100 rounded-tl-sm'

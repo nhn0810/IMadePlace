@@ -33,6 +33,7 @@ export default async function MessagesInboxPage() {
   const { data: myPosts } = await supabase
     .from('posts')
     .select('id, title, author_id, collaborator_ids, created_at')
+    .eq('status', 'in_progress') // Only show chat rooms for active projects
     .or(`author_id.eq.${session.user.id},collaborator_ids.cs.{${session.user.id}}`)
   
   const myProjectIds = myPosts?.map(p => p.id) || []
