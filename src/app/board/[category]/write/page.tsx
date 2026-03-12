@@ -25,6 +25,7 @@ export default function WritePostPage() {
   const [projectName, setProjectName] = useState('')
   const [shortDescription, setShortDescription] = useState('')
   const [recruitmentDate, setRecruitmentDate] = useState('')
+  const [isIndefinite, setIsIndefinite] = useState(false)
   
   const [collaborators, setCollaborators] = useState<Profile[]>([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -124,9 +125,9 @@ export default function WritePostPage() {
       return
     }
     
-    // Status can only be changed by admin/master, default to waiting
+    // Status management: Authors can set status for 'youmake'
     let finalStatus = 'waiting'
-    if (category === 'youmake' && (user?.role === 'master' || user?.role === 'admin')) {
+    if (category === 'youmake') {
       finalStatus = status
     }
 
@@ -140,7 +141,7 @@ export default function WritePostPage() {
       post_type: postType || null,
       project_name: projectName.trim() || null,
       short_description: shortDescription.trim() || null,
-      recruitment_end_date: recruitmentDate || null,
+      recruitment_end_date: isIndefinite ? null : (recruitmentDate || null),
     })
 
     if (error) {
@@ -223,7 +224,7 @@ export default function WritePostPage() {
               </select>
             </div>
 
-            {postType === '같이 하자' && (
+            {postType === '같이 하자' && status === 'waiting' && (
               <div className="flex flex-col sm:flex-row gap-4 p-4 bg-emerald-50/50 border border-emerald-100 rounded-xl">
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-emerald-800 mb-2">프리 롬핑 프로젝트 가명 <span className="text-rose-500">*</span></label>
@@ -237,13 +238,25 @@ export default function WritePostPage() {
                   />
                 </div>
                 <div className="w-full sm:w-1/3">
-                  <label className="block text-sm font-medium text-emerald-800 mb-2">모집 마감일 <span className="text-rose-500">*</span></label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-emerald-800">모집 마감일 <span className="text-rose-500">*</span></label>
+                    <label className="flex items-center gap-1.5 text-xs text-emerald-600 font-bold cursor-pointer">
+                       <input 
+                         type="checkbox" 
+                         checked={isIndefinite} 
+                         onChange={e => setIsIndefinite(e.target.checked)} 
+                         className="rounded text-emerald-500 focus:ring-emerald-500"
+                       />
+                       상시 모집
+                    </label>
+                  </div>
                   <input
                     type="date"
-                    required
+                    required={!isIndefinite}
+                    disabled={isIndefinite}
                     value={recruitmentDate}
                     onChange={(e) => setRecruitmentDate(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                    className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all disabled:opacity-50 disabled:bg-slate-100"
                   />
                 </div>
               </div>
@@ -334,18 +347,19 @@ export default function WritePostPage() {
           </div>
         )}
 
-        {category === 'youmake' && isAdmin && (
+        {category === 'youmake' && (
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">진행 상태</label>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+              className="px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white font-bold"
             >
               <option value="waiting">대기중</option>
               <option value="in_progress">진행중</option>
               <option value="completed">완료</option>
             </select>
+            <p className="text-[10px] text-slate-400 mt-1 pl-1">* '대기중' 상태에서만 신규 팀원을 모집할 수 있습니다.</p>
           </div>
         )}
 

@@ -177,10 +177,10 @@ export default async function PostDetailPage({ params }: { params: { category: s
         {post.project_name && (
           <div className="mb-2 text-emerald-600 font-bold tracking-tight flex items-center gap-2">
             <span className="text-xl">[{post.project_name}]</span>
-            {post.post_type === '같이 하자' && post.recruitment_end_date && (
-              <span className={`text-sm px-2 py-0.5 rounded-full ${new Date(post.recruitment_end_date) > new Date() ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
-                {new Date(post.recruitment_end_date) > new Date() ? '모집 중' : '모집 마감'}
-                ({new Date(post.recruitment_end_date).toLocaleDateString()} 까지)
+            {post.post_type === '같이 하자' && post.status === 'waiting' && (
+              <span className={`text-sm px-2 py-0.5 rounded-full ${(!post.recruitment_end_date || new Date(post.recruitment_end_date) > new Date()) ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
+                {!post.recruitment_end_date ? '상시 모집 중' : (new Date(post.recruitment_end_date) > new Date() ? '모집 중' : '모집 마감')}
+                {post.recruitment_end_date && ` (${new Date(post.recruitment_end_date).toLocaleDateString()} 까지)`}
               </span>
             )}
           </div>
@@ -260,17 +260,27 @@ export default async function PostDetailPage({ params }: { params: { category: s
       {/* Participate Button */}
       {post.post_type === '같이 하자' && (
         <div className="mb-16">
-           {new Date(post.recruitment_end_date) > new Date() ? (
-             session ? (
-               <ParticipateButton postId={post.id} userId={session.user.id} initialJoined={isParticipating} />
+           {post.status === 'waiting' ? (
+             (!post.recruitment_end_date || new Date(post.recruitment_end_date) > new Date()) ? (
+               session ? (
+                 <ParticipateButton postId={post.id} userId={session.user.id} initialJoined={isParticipating} />
+               ) : (
+                 <div className="p-4 bg-slate-50 text-slate-500 text-center rounded-2xl border border-slate-200">
+                   참여하려면 로그인이 필요합니다.
+                 </div>
+               )
              ) : (
-               <div className="p-4 bg-slate-50 text-slate-500 text-center rounded-2xl border border-slate-200">
-                 참여하려면 로그인이 필요합니다.
+               <div className="p-4 bg-slate-50 text-slate-500 font-bold text-center rounded-2xl border border-slate-200 opacity-60">
+                 모집이 마감된 프로젝트입니다.
                </div>
              )
+           ) : isParticipating ? (
+              <div className="p-4 bg-emerald-50 text-emerald-700 font-bold text-center rounded-2xl border border-emerald-200">
+                이 프로젝트에 참여 중입니다. ({post.status === 'in_progress' ? '진행 중' : '완료'})
+              </div>
            ) : (
              <div className="p-4 bg-slate-50 text-slate-500 font-bold text-center rounded-2xl border border-slate-200 opacity-60">
-               모집이 마감된 프로젝트입니다.
+               모집이 종료되어 {post.status === 'in_progress' ? '진행 중' : '완료된'} 프로젝트입니다.
              </div>
            )}
         </div>
