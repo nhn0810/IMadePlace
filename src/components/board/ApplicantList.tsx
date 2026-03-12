@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Check, X, Clock, UserIcon, Loader2 } from 'lucide-react'
+import { Check, X, Clock, UserIcon, Loader2, ChevronDown, ChevronUp } from 'lucide-react'
+import Link from 'next/link'
 
 type Participant = {
   id: string
@@ -28,6 +29,7 @@ export function ApplicantList({
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [actionState, setActionState] = useState<{id: string, newStatus: 'accepted' | 'rejected'} | null>(null)
   const [reason, setReason] = useState('')
+  const [isOpen, setIsOpen] = useState(false)
   const supabase = createClient()
 
   const openAction = (id: string, newStatus: 'accepted' | 'rejected') => {
@@ -94,21 +96,39 @@ export function ApplicantList({
   }
 
   return (
-    <ul className="divide-y divide-slate-100 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-      {participants.map(p => (
-        <li key={p.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50 transition-colors">
-          <div className="flex items-center gap-3">
-             <div className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden flex-shrink-0">
-               {p.profiles?.avatar_url ? (
-                 <img src={p.profiles.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-               ) : (
-                 <div className="w-full h-full text-slate-500 flex items-center justify-center font-bold">
-                   <UserIcon className="w-5 h-5" />
-                 </div>
-               )}
-             </div>
-             <div>
-                <p className="font-bold text-slate-900">{p.profiles?.display_name || 'Anonymous'}</p>
+    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors border-b border-transparent data-[open=true]:border-slate-100"
+        data-open={isOpen}
+      >
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-slate-700">신청자 목록</span>
+          <span className="bg-slate-100 text-slate-500 text-xs py-0.5 px-2 rounded-full font-bold">
+            {participants.length}
+          </span>
+        </div>
+        {isOpen ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
+      </button>
+
+      {isOpen && (
+        <ul className="divide-y divide-slate-100 animate-in slide-in-from-top-2 duration-200">
+          {participants.map(p => (
+            <li key={p.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors">
+              <div className="flex items-center gap-3">
+                 <Link href={`/profile/${p.user_id}`} className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden flex-shrink-0 hover:opacity-80 transition-opacity">
+                   {p.profiles?.avatar_url ? (
+                     <img src={p.profiles.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                   ) : (
+                     <div className="w-full h-full text-slate-500 flex items-center justify-center font-bold">
+                       <UserIcon className="w-5 h-5" />
+                     </div>
+                   )}
+                 </Link>
+                 <div>
+                    <Link href={`/profile/${p.user_id}`} className="font-bold text-slate-900 hover:text-emerald-600 transition-colors">
+                      {p.profiles?.display_name || 'Anonymous'}
+                    </Link>
                 <div className="flex flex-col gap-1 mt-1">
                    <div className="flex items-center gap-2 text-xs font-medium">
                      <span className="text-slate-400">{new Date(p.created_at).toLocaleDateString()} 지원함</span>
@@ -173,8 +193,10 @@ export function ApplicantList({
                </div>
              )}
           </div>
-        </li>
-      ))}
-    </ul>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }

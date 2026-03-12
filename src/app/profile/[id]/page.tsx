@@ -19,6 +19,7 @@ export default function PublicProfilePage() {
   const [posts, setPosts] = useState<any[]>([])
   const [comments, setComments] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [subTab, setSubTab] = useState('all') // all, imade, youmake, iuse
 
   const supabase = createClient()
 
@@ -41,11 +42,16 @@ export default function PublicProfilePage() {
       setProfile(pData)
 
       if (activeTab === 'posts') {
-        const { data } = await supabase
+        let query = supabase
           .from('posts')
           .select(`*, profiles:author_id (display_name, avatar_url)`)
           .or(`author_id.eq.${id},collaborator_ids.cs.{"${id}"}`)
-          .order('created_at', { ascending: false })
+
+        if (subTab !== 'all') {
+          query = query.eq('category', subTab)
+        }
+
+        const { data } = await query.order('created_at', { ascending: false })
         if (data) setPosts(data)
       } else if (activeTab === 'comments' && !pData.hide_comments) {
         const { data } = await supabase
@@ -62,7 +68,7 @@ export default function PublicProfilePage() {
       setIsLoading(false)
     }
     loadData()
-  }, [id, activeTab, supabase])
+  }, [id, activeTab, subTab, supabase])
 
   if (isLoading) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-emerald-500" /></div>
@@ -139,7 +145,35 @@ export default function PublicProfilePage() {
       {/* Content */}
       <div>
         {activeTab === 'posts' && (
-          <PostList posts={posts} category="profile" />
+          <>
+            <div className="flex flex-wrap gap-2 mb-6">
+              {[
+                { id: 'all', label: '전체' },
+                { id: 'imade', label: 'I made' },
+                { id: 'youmake', label: 'You make' },
+                { id: 'iuse', label: 'I use' }
+              ].map(sub => (
+                <button
+                  key={sub.id}
+                  onClick={() => setSubTab(sub.id)}
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border ${
+                    subTab === sub.id 
+                      ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm' 
+                      : 'bg-white border-slate-200 text-slate-500 hover:border-emerald-200 hover:bg-emerald-50/50'
+                  }`}
+                >
+                  {sub.label}
+                </button>
+              ))}
+            </div>
+            {posts.length === 0 ? (
+              <div className="text-center py-20 px-4 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
+                <p className="text-slate-500">작성한 게시물이 없습니다.</p>
+              </div>
+            ) : (
+              <PostList posts={posts} category="profile" />
+            )}
+          </>
         )}
         
         {activeTab === 'comments' && (
