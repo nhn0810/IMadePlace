@@ -12,13 +12,14 @@ type Message = {
   room_id: string | null
   content: string
   created_at: string
+  is_read?: boolean
   profiles?: { display_name: string, avatar_url: string }
 }
 
 export function ChatRoom({ 
   currentUserId, 
-  otherUserId, // For 1:1, this is the other user. For Group, this might be null or the room_id
-  roomId,      // If provided, this is a Group Chat (Project ID)
+  otherUserId, 
+  roomId,      
   isBlockedByMe,
   isBlockedByThem,
   isProjectComplete,
@@ -37,6 +38,8 @@ export function ChatRoom({
   const [isSending, setIsSending] = useState(false)
   const [participants, setParticipants] = useState<any[]>([])
   const [readStatuses, setReadStatuses] = useState<Record<string, string>>({}) // userId -> lastReadAt
+  const [isOtherTyping, setIsOtherTyping] = useState(false)
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
   const bottomRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
@@ -48,65 +51,70 @@ export function ChatRoom({
     fetchInitialData()
     if (markAsReadAction) markAsReadAction().catch(console.error)
 
-    // Listen for messages in this specific room or DM pair
-    const filter = isGroup 
-      ? `room_id=eq.${activeRoomId}`
-      : `and(sender_id.in.("${currentUserId}","${otherUserId}"),receiver_id.in.("${currentUserId}","${otherUserId}"))`
-
+    // 1. Listen for MESSAGES
     const channel = supabase
-      .channel(`room:${activeRoomId}`)
+      .channel(`messages_room_${activeRoomId}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: isGroup ? `room_id=eq.${activeRoomId}` : undefined
         },
         async (payload) => {
-          // Additional filter for 1:1 since the filter string doesn't support complex 'and/in' perfectly in all versions
-          if (!isGroup) {
-             const m = payload.new
-             if (!((m.sender_id === currentUserId && m.receiver_id === otherUserId) || (m.sender_id === otherUserId && m.receiver_id === currentUserId))) return
-          }
+          const m = payload.new
+          const isTargetRoom = isGroup 
+            ? m.room_id === activeRoomId
+            : ((m.sender_id === currentUserId && m.receiver_id === otherUserId) || (m.sender_id === otherUserId && m.receiver_id === currentUserId))
 
-          // Fetch profile if it's not present (useful for group chats)
-          let msgWithProfile = payload.new
-          if (isGroup && payload.new.sender_id !== currentUserId) {
-            const { data: profile } = await supabase.from('profiles').select('display_name, avatar_url').eq('id', payload.new.sender_id).single()
-            msgWithProfile = { ...payload.new, profiles: profile }
+          if (!isTargetRoom) return
+
+          let msgWithProfile = m
+          if (m.sender_id !== currentUserId) {
+            const { data: profile } = await supabase.from('profiles').select('display_name, avatar_url').eq('id', m.sender_id).single()
+            msgWithProfile = { ...m, profiles: profile }
+            if (markAsReadAction) markAsReadAction()
           }
 
           setMessages((prev) => {
-            if (prev.find(m => m.id === payload.new.id)) return prev
+            if (prev.find(existing => existing.id === m.id)) return prev
             return [...prev, msgWithProfile]
           })
-          
-          if (payload.new.sender_id !== currentUserId && markAsReadAction) {
-            markAsReadAction()
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'messages' }, // Need to monitor for read triggers if using column-based
-        (payload) => {
-           // update local if necessary
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'chat_room_reads', filter: `room_id=eq.${activeRoomId}` },
-        (payload) => {
-           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-             setReadStatuses(prev => ({ ...prev, [payload.new.user_id]: payload.new.last_read_at }))
-           }
         }
       )
       .subscribe()
 
+    // 2. Typing Indicators (Broadcast)
+    const typingChannel = supabase.channel(`typing:${activeRoomId}`)
+      .on(
+        'broadcast',
+        { event: 'typing' },
+        (payload) => {
+          if (payload.payload.userId !== currentUserId) {
+             setIsOtherTyping(payload.payload.isTyping)
+          }
+        }
+      )
+      .subscribe()
+
+    // 3. Read Statuses
+    const readChannel = supabase.channel(`reads_${activeRoomId}`)
+       .on(
+         'postgres_changes',
+         { event: '*', schema: 'public', table: 'chat_room_reads', filter: `room_id=eq.${activeRoomId}` },
+         (payload) => {
+            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+              setReadStatuses(prev => ({ ...prev, [payload.new.user_id]: payload.new.last_read_at }))
+            }
+         }
+       )
+       .subscribe()
+
     return () => {
       supabase.removeChannel(channel)
+      supabase.removeChannel(typingChannel)
+      supabase.removeChannel(readChannel)
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
     }
   }, [currentUserId, otherUserId, activeRoomId, isGroup])
 
@@ -117,9 +125,7 @@ export function ChatRoom({
   async function fetchInitialData() {
     const twoWeeksAgo = formatISO(subDays(new Date(), 14))
     
-    // 1. Fetch Messages
     let query = supabase.from('messages').select('*, profiles:sender_id(display_name, avatar_url)')
-    
     if (isGroup) {
       query = query.eq('room_id', activeRoomId)
     } else {
@@ -132,11 +138,10 @@ export function ChatRoom({
 
     if (mData) setMessages(mData)
 
-    // 2. Fetch Participants & Read Statuses if Group
     if (isGroup) {
       const { data: post } = await supabase.from('posts').select('author_id, collaborator_ids').eq('id', activeRoomId).single()
       if (post) {
-        const allMemberIds = [post.author_id, ...(post.collaborator_ids || [])]
+        const allMemberIds = Array.from(new Set([post.author_id, ...(post.collaborator_ids || [])]))
         const { data: pData } = await supabase.from('profiles').select('id, display_name, avatar_url').in('id', allMemberIds)
         if (pData) setParticipants(pData)
         
@@ -148,6 +153,25 @@ export function ChatRoom({
     }
   }
 
+  const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewMessage(e.target.value)
+
+    supabase.channel(`typing:${activeRoomId}`).send({
+      type: 'broadcast',
+      event: 'typing',
+      payload: { userId: currentUserId, isTyping: true },
+    })
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
+    typingTimeoutRef.current = setTimeout(() => {
+      supabase.channel(`typing:${activeRoomId}`).send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: { userId: currentUserId, isTyping: false },
+      })
+    }, 3000)
+  }
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newMessage.trim() || isBlockedByMe || isBlockedByThem || isProjectComplete) return
@@ -155,6 +179,13 @@ export function ChatRoom({
     const content = newMessage.trim()
     setNewMessage('')
     setIsSending(true)
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
+    supabase.channel(`typing:${activeRoomId}`).send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: { userId: currentUserId, isTyping: false },
+    })
     
     const payload: any = {
       sender_id: currentUserId,
@@ -174,7 +205,6 @@ export function ChatRoom({
       setNewMessage(content) 
     } else if (data) {
       setMessages(prev => [...prev, data])
-      // Update our own read status
       if (isGroup) {
         await supabase.from('chat_room_reads').upsert({ room_id: activeRoomId, user_id: currentUserId, last_read_at: new Date().toISOString() })
       }
@@ -184,8 +214,8 @@ export function ChatRoom({
   }
 
   const getUnreadCount = (msgCreatedAt: string) => {
-    if (!isGroup) return 0 // 1:1 uses is_read on message
-    const totalExcludingMe = participants.length - 1
+    if (!isGroup) return 0 
+    const totalExcludingMe = Math.max(0, participants.length - 1)
     if (totalExcludingMe <= 0) return 0
     
     let readCount = 0
@@ -200,7 +230,6 @@ export function ChatRoom({
 
   return (
     <div className="flex flex-col h-full bg-slate-50 relative border rounded-2xl overflow-hidden shadow-inner">
-      {/* Header Info */}
       <div className="bg-white border-b border-slate-100 p-3 px-4 flex items-center justify-between">
          <div className="flex items-center gap-3">
             {isGroup ? (
@@ -222,7 +251,6 @@ export function ChatRoom({
          </div>
       </div>
 
-      {/* Persistence Disclaimer */}
       <div className="bg-amber-50/80 border-b border-amber-100 px-4 py-2 flex items-center gap-2">
          <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
          <span className="text-[10px] sm:text-[11px] font-bold text-amber-700 leading-none">
@@ -264,6 +292,17 @@ export function ChatRoom({
             )
           })
         )}
+        
+        {isOtherTyping && (
+          <div className="flex justify-start">
+             <div className="bg-white border border-slate-100 px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm flex items-center gap-1">
+                <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce"></span>
+             </div>
+          </div>
+        )}
+
         <div ref={bottomRef} />
       </div>
 
@@ -285,7 +324,7 @@ export function ChatRoom({
             <input
               type="text"
               value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
+              onChange={handleTyping}
               placeholder="메시지를 입력하세요..."
               className="w-full bg-slate-100 border-none px-4 py-3 rounded-xl pr-14 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-medium text-slate-800 text-sm"
               autoComplete="off"

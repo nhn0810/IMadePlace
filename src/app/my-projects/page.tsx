@@ -97,8 +97,11 @@ export default function MyProjectsPage() {
         await supabase.from('notifications')
           .delete()
           .match({ user_id: session.user.id, type: 'apply-request' })
-      } else if (activeTab === 'in_progress') {
-        // Option to clear 'apply-accepted' or other relevant notifications
+      }
+      
+      const chatParam = searchParams.get('chat')
+      if (chatParam) {
+        setActiveChatRoom(chatParam)
       }
     }
     loadData()

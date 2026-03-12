@@ -105,9 +105,15 @@ export default function WritePostPage() {
       alert('말머리(태그)를 선택해주세요.')
       return
     }
-    if (category === 'youmake' && postType === '같이 하자' && (!projectName.trim() || !recruitmentDate)) {
-      alert('모집 글은 프로젝트 가명과 종료 일자를 반드시 입력해야 합니다.')
-      return
+    if (category === 'youmake' && postType === '같이 하자') {
+      if (!projectName.trim()) {
+        alert('프로젝트 가명을 입력해주세요.')
+        return
+      }
+      if (!isIndefinite && !recruitmentDate) {
+        alert('모집 종료 일자를 선택해주세요.')
+        return
+      }
     }
     
     setIsSubmitting(true)

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { MessageSquare } from 'lucide-react'
+import { MessageSquare, Users } from 'lucide-react'
 import { subDays, formatISO } from 'date-fns'
 import { revalidatePath } from 'next/cache'
 
@@ -29,37 +29,81 @@ export default async function MessagesInboxPage() {
     .eq('id', session.user.id)
     .single()
 
-  // Fetch recent conversations for everyone (limited to 14 days)
+  // 1. Fetch user's projects to identify group rooms
+  const { data: myPosts } = await supabase
+    .from('posts')
+    .select('id, title, author_id, collaborator_ids')
+    .or(`author_id.eq.${session.user.id},collaborator_ids.cs.{${session.user.id}}`)
+  
+  const myProjectIds = myPosts?.map(p => p.id) || []
+  const projectMap = new Map(myPosts?.map(p => [p.id, p]))
+
+  // 2. Fetch recent conversations (DMs & Group)
   const twoWeeksAgo = formatISO(subDays(new Date(), 14))
   const { data: messages } = await supabase
     .from('messages')
     .select(`
-      sender_id, receiver_id, content, created_at, is_read,
+      sender_id, receiver_id, room_id, content, created_at, is_read,
       sender:sender_id(id, display_name, avatar_url, role),
       receiver:receiver_id(id, display_name, avatar_url, role)
     `)
-    .or(`sender_id.eq.${session.user.id},receiver_id.eq.${session.user.id}`)
+    .or(
+      `sender_id.eq.${session.user.id},receiver_id.eq.${session.user.id}${myProjectIds.length > 0 ? `,room_id.in.(${myProjectIds.join(',')})` : ''}`
+    )
     .gte('created_at', twoWeeksAgo)
     .order('created_at', { ascending: false })
 
-  const conversantsMap = new Map()
+  // 3. Group messages into conversations
+  const conversationsMap = new Map()
+  
   messages?.forEach(msg => {
-    const other = (msg.sender_id === session.user.id ? msg.receiver : msg.sender) as any as UserProfile
-    if (!conversantsMap.has(other.id)) {
-      conversantsMap.set(other.id, {
-        user: other,
-        lastMessage: msg.content,
-        time: msg.created_at,
-        unreadCount: 0
-      })
-    }
+    let key, convData
     
+    if (msg.room_id) {
+      // Group Chat
+      key = `room_${msg.room_id}`
+      if (!conversationsMap.has(key)) {
+        const project = projectMap.get(msg.room_id)
+        conversationsMap.set(key, {
+          isGroup: true,
+          id: msg.room_id,
+          title: project?.title || '알 수 없는 프로젝트',
+          lastMessage: msg.content,
+          time: msg.created_at,
+          unreadCount: 0,
+          user: null
+        })
+      }
+    } else {
+      // 1:1 DM
+      const other = (msg.sender_id === session.user.id ? msg.receiver : msg.sender) as any as UserProfile
+      if (!other) return // Safety
+      
+      key = `user_${other.id}`
+      if (!conversationsMap.has(key)) {
+        conversationsMap.set(key, {
+          isGroup: false,
+          id: other.id,
+          title: other.display_name,
+          user: other,
+          lastMessage: msg.content,
+          time: msg.created_at,
+          unreadCount: 0
+        })
+      }
+    }
+
+    // Unread count logic
+    // For DMs: is_read = false and I am the receiver
+    // For Group: requires chat_room_reads check. 
+    // Simplified: For now, if it's the latest and I haven't seen the room notification, it's unread.
+    // Actually, let's just use the is_read for DMs and a placeholder for group for now.
     if (!msg.is_read && msg.receiver_id === session.user.id) {
-       conversantsMap.get(other.id).unreadCount += 1
+       conversationsMap.get(key).unreadCount += 1
     }
   })
 
-  const conversations = Array.from(conversantsMap.values()).sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+  const conversations = Array.from(conversationsMap.values()).sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-10 h-screen flex flex-col">
@@ -80,29 +124,36 @@ export default async function MessagesInboxPage() {
         <div className="space-y-4">
           {conversations.map(conv => (
             <Link 
-              key={conv.user.id} 
-              href={`/messages/${conv.user.id}`}
+              key={conv.id} 
+              href={conv.isGroup ? `/my-projects?tab=in_progress&chat=${conv.id}` : `/messages/${conv.id}`}
               className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-slate-200 hover:border-emerald-300 hover:shadow-sm transition-all group"
             >
-              <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-100 flex-shrink-0">
-                {conv.user.avatar_url ? (
+              <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-100 flex-shrink-0 flex items-center justify-center">
+                {conv.isGroup ? (
+                   <div className="w-full h-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold">
+                     <Users className="w-6 h-6" />
+                   </div>
+                ) : conv.user?.avatar_url ? (
                    <img src={conv.user.avatar_url} alt="avatar" className="w-full h-full object-cover" />
                 ) : (
                    <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold bg-slate-200">
-                     {conv.user.display_name?.[0]?.toUpperCase() || 'U'}
+                     {conv.user?.display_name?.[0]?.toUpperCase() || 'U'}
                    </div>
                 )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-baseline mb-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 max-w-[70%]">
                     <h3 className="font-semibold text-slate-900 group-hover:text-emerald-600 transition-colors truncate">
-                      {conv.user.display_name}
-                      {conv.user.id === session.user.id && (
+                      {conv.title}
+                      {!conv.isGroup && conv.id === session.user.id && (
                         <span className="ml-1 text-emerald-500 text-xs font-bold">(나)</span>
                       )}
                     </h3>
-                    {conv.user.role && conv.user.role !== 'user' && conv.user.role !== 'guest' && (
+                    {conv.isGroup && (
+                       <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-bold uppercase">Project</span>
+                    )}
+                    {!conv.isGroup && conv.user?.role && conv.user.role !== 'user' && conv.user.role !== 'guest' && (
                        <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-bold ${
                          conv.user.role === 'master' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
                        }`}>
