@@ -8,6 +8,7 @@ type Participant = {
   id: string
   user_id: string
   status: string
+  status_message?: string
   created_at: string
   profiles: {
     id: string
@@ -25,20 +26,41 @@ export function ApplicantList({
 }) {
   const [participants, setParticipants] = useState<Participant[]>(initialParticipants || [])
   const [loadingId, setLoadingId] = useState<string | null>(null)
+  const [actionState, setActionState] = useState<{id: string, newStatus: 'accepted' | 'rejected'} | null>(null)
+  const [reason, setReason] = useState('')
   const supabase = createClient()
 
-  const handleUpdateStatus = async (participantId: string, newStatus: 'accepted' | 'rejected') => {
+  const openAction = (id: string, newStatus: 'accepted' | 'rejected') => {
+    setActionState({ id, newStatus })
+    setReason('')
+  }
+
+  const cancelAction = () => {
+    setActionState(null)
+    setReason('')
+  }
+
+  const handleUpdateStatus = async () => {
+    if (!actionState) return
+    const { id: participantId, newStatus } = actionState
+    
+    // Validate reason
+    if (!reason.trim()) {
+      alert('수락/거절 사유를 입력해주세요.')
+      return
+    }
+
     setLoadingId(participantId)
     
-    // Update participant status
+    // Update participant status and reason
     const { error } = await supabase
       .from('project_participants')
-      .update({ status: newStatus })
+      .update({ status: newStatus, status_message: reason.trim() })
       .eq('id', participantId)
 
     if (!error) {
        setParticipants(prev => 
-         prev.map(p => p.id === participantId ? { ...p, status: newStatus } : p)
+         prev.map(p => p.id === participantId ? { ...p, status: newStatus, status_message: reason.trim() } : p)
        )
        
        // Handle side-effects (e.g. adding them to the collaborator_ids of the post)
@@ -59,6 +81,8 @@ export function ApplicantList({
        alert('상태 업데이트 중 오류가 발생했습니다.')
     }
     setLoadingId(null)
+    setActionState(null)
+    setReason('')
   }
 
   if (participants.length === 0) {
@@ -85,27 +109,54 @@ export function ApplicantList({
              </div>
              <div>
                 <p className="font-bold text-slate-900">{p.profiles?.display_name || 'Anonymous'}</p>
-                <div className="flex items-center gap-2 text-xs font-medium mt-1">
-                   <span className="text-slate-400">{new Date(p.created_at).toLocaleDateString()} 지원함</span>
-                   <span className={`px-2 py-0.5 rounded-full ${
-                     p.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' : 
-                     p.status === 'rejected' ? 'bg-rose-100 text-rose-700' : 
-                     'bg-amber-100 text-amber-700'
-                   }`}>
-                     {p.status === 'accepted' ? '수락됨' : p.status === 'rejected' ? '거절됨' : '대기 중'}
-                   </span>
+                <div className="flex flex-col gap-1 mt-1">
+                   <div className="flex items-center gap-2 text-xs font-medium">
+                     <span className="text-slate-400">{new Date(p.created_at).toLocaleDateString()} 지원함</span>
+                     <span className={`px-2 py-0.5 rounded-full ${
+                       p.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' : 
+                       p.status === 'rejected' ? 'bg-rose-100 text-rose-700' : 
+                       'bg-amber-100 text-amber-700'
+                     }`}>
+                       {p.status === 'accepted' ? '수락됨' : p.status === 'rejected' ? '거절됨' : '대기 중'}
+                     </span>
+                   </div>
+                   {p.status_message && (
+                     <div className="text-xs text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 mt-1">
+                       <span className="font-bold mr-1">사유:</span> {p.status_message}
+                     </div>
+                   )}
                 </div>
              </div>
           </div>
           
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="flex flex-col sm:flex-row items-end sm:items-center justify-end gap-2 w-full sm:w-auto mt-3 sm:mt-0">
              {loadingId === p.id ? (
                <div className="px-4 py-2"><Loader2 className="w-5 h-5 animate-spin text-emerald-500" /></div>
+             ) : actionState?.id === p.id ? (
+               <div className="flex flex-col items-end gap-2 w-full sm:w-72 bg-slate-50 p-3 rounded-xl border border-slate-200 shadow-sm transition-all animate-in fade-in zoom-in-95">
+                 <input 
+                   type="text" 
+                   value={reason}
+                   onChange={e => setReason(e.target.value)}
+                   placeholder={`${actionState.newStatus === 'accepted' ? '수락' : '거절'} 사유를 입력해주세요...`} 
+                   className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500"
+                   autoFocus
+                 />
+                 <div className="flex items-center gap-2">
+                   <button onClick={cancelAction} className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-200 rounded-md transition-colors">취소</button>
+                   <button 
+                     onClick={handleUpdateStatus} 
+                     className={`px-3 py-1.5 text-xs font-bold text-white rounded-md transition-colors shadow-sm ${actionState.newStatus === 'accepted' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'}`}
+                   >
+                     확인
+                   </button>
+                 </div>
+               </div>
              ) : (
-               <>
+               <div className="flex items-center gap-2">
                  {p.status !== 'accepted' && (
                    <button 
-                     onClick={() => handleUpdateStatus(p.id, 'accepted')}
+                     onClick={() => openAction(p.id, 'accepted')}
                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-sm font-bold transition-colors border border-emerald-100/50 shadow-sm"
                    >
                      <Check className="w-4 h-4" /> 수락
@@ -113,13 +164,13 @@ export function ApplicantList({
                  )}
                  {p.status !== 'rejected' && (
                    <button 
-                     onClick={() => handleUpdateStatus(p.id, 'rejected')}
+                     onClick={() => openAction(p.id, 'rejected')}
                      className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-sm font-bold transition-colors border border-rose-100/50 shadow-sm"
                    >
                      <X className="w-4 h-4" /> 거절
                    </button>
                  )}
-               </>
+               </div>
              )}
           </div>
         </li>

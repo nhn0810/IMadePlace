@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Users, MessageSquare } from 'lucide-react'
+import { Users, MessageSquare, User } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -46,7 +46,7 @@ export default async function DevelopersPage() {
         {adminUsers.map(admin => (
           <Link 
             key={admin.id} 
-            href={`/messages/${admin.id}`}
+            href={`/profile/${admin.id}`}
             className="flex flex-col items-center p-8 bg-white rounded-3xl border border-slate-200 hover:border-emerald-400 hover:shadow-md transition-all group text-center"
           >
             <div className="w-24 h-24 rounded-full overflow-hidden bg-slate-100 flex-shrink-0 mb-4 border-4 border-white shadow-sm group-hover:scale-105 transition-transform">
@@ -70,8 +70,8 @@ export default async function DevelopersPage() {
               {admin.role === 'master' ? '운영자' : '개발자'}
             </span>
             <div className="mt-6 w-full py-3 rounded-2xl bg-slate-50 flex items-center justify-center gap-2 text-sm font-semibold text-slate-500 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors">
-              <MessageSquare className="w-4 h-4" />
-              메시지 보내기
+              <User className="w-4 h-4" />
+              프로필 보기
             </div>
           </Link>
         ))}

@@ -113,7 +113,7 @@ export default async function PostDetailPage({ params }: { params: { category: s
   const isAdminOrMaster = profile?.role === 'master' || profile?.role === 'admin'
   const isAuthor = session?.user.id === post.author_id
   const isCollaborator = post.collaborator_ids?.includes(session?.user.id)
-  const canEdit = isAuthor || isCollaborator
+  const canEdit = isAuthor || (isCollaborator && isAdminOrMaster)
   const canDelete = isAuthor
 
   return (
@@ -198,7 +198,7 @@ export default async function PostDetailPage({ params }: { params: { category: s
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4 flex-wrap">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-full shadow-sm">
+            <Link href={`/profile/${post.author_id}`} className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-full shadow-sm hover:bg-slate-100 transition-colors group">
               <div className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden flex-shrink-0">
                 {post.profiles?.avatar_url ? (
                   <img src={post.profiles.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
@@ -209,13 +209,13 @@ export default async function PostDetailPage({ params }: { params: { category: s
                 )}
               </div>
               <div className="pr-1 text-sm">
-                <div className="font-semibold text-slate-900 leading-tight">{post.profiles?.display_name || 'Anonymous'}</div>
+                <div className="font-semibold text-slate-900 leading-tight group-hover:text-emerald-600 transition-colors">{post.profiles?.display_name || 'Anonymous'}</div>
                 <div className="text-[10px] text-slate-400">작성자</div>
               </div>
-            </div>
+            </Link>
 
             {collaborators.map(c => (
-              <div key={c.id} className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-full shadow-sm">
+              <Link key={c.id} href={`/profile/${c.id}`} className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-full shadow-sm hover:bg-slate-100 transition-colors group">
                 <div className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden flex-shrink-0">
                   {c.avatar_url ? (
                     <img src={c.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
@@ -226,10 +226,10 @@ export default async function PostDetailPage({ params }: { params: { category: s
                   )}
                 </div>
                 <div className="pr-1 text-sm">
-                  <div className="font-semibold text-slate-900 leading-tight">{c.display_name || 'Anonymous'}</div>
+                  <div className="font-semibold text-slate-900 leading-tight group-hover:text-emerald-600 transition-colors">{c.display_name || 'Anonymous'}</div>
                   <div className="text-[10px] text-slate-400">공동 작성자</div>
                 </div>
-              </div>
+              </Link>
             ))}
             
             <div className="flex items-center gap-2 text-sm text-slate-400 mt-1 sm:mt-0 sm:ml-2 w-full sm:w-auto">

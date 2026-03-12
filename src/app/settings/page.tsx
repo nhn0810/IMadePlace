@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, UserX, AlertTriangle, ShieldCheck, Settings } from 'lucide-react'
+import { ArrowLeft, UserX, AlertTriangle, ShieldCheck, Settings, Lock } from 'lucide-react'
 import { revalidatePath } from 'next/cache'
 
 export const dynamic = 'force-dynamic'
@@ -49,6 +49,21 @@ export default async function SettingsPage() {
 
     await s.from('blocks').delete().eq('blocker_id', ssn.user.id).eq('blocked_id', targetId)
     revalidatePath('/settings')
+  }
+
+  async function toggleCommentPrivacy() {
+    'use server'
+    const s = await createClient()
+    const { data: { session: ssn } } = await s.auth.getSession()
+    if (!ssn) return
+
+    // Fetch current setting
+    const { data: currProfile } = await s.from('profiles').select('hide_comments').eq('id', ssn.user.id).single()
+    if (currProfile) {
+      await s.from('profiles').update({ hide_comments: !currProfile.hide_comments }).eq('id', ssn.user.id)
+      revalidatePath('/settings')
+      revalidatePath('/profile/[id]', 'page')
+    }
   }
 
   async function claimMasterAction() {
@@ -144,6 +159,29 @@ export default async function SettingsPage() {
             </form>
           </div>
         )}
+
+        {/* Privacy Settings */}
+        <section>
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-6 hover:border-emerald-200 transition-colors shadow-sm">
+             <div>
+               <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2 mb-2">
+                 <Lock className="w-5 h-5 text-slate-400" />
+                 내 댓글 숨기기 설정
+               </h3>
+               <p className="text-slate-500 text-sm">
+                 공개 프로필에서 내가 작성한 댓글을 다른 사람들이 볼 수 없도록 자물쇠로 잠급니다. (본인에게는 보이지 않는 설정입니다.)
+               </p>
+             </div>
+             <form action={toggleCommentPrivacy} className="flex-shrink-0">
+               <button 
+                 className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${profile.hide_comments ? 'bg-emerald-500' : 'bg-slate-200'}`}
+               >
+                 <span className={`inline-block w-6 h-6 transform rounded-full bg-white transition-transform ${profile.hide_comments ? 'translate-x-7' : 'translate-x-1'}`} />
+               </button>
+               <span className="sr-only">Toggle Comments Privacy</span>
+             </form>
+          </div>
+        </section>
 
         {/* Block List */}
         <section>

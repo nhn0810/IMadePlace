@@ -68,7 +68,7 @@ export default function EditPostPage() {
       const isCollaborator = post.collaborator_ids?.includes(session.user.id)
       const isAdminOrMaster = profile?.role === 'master' || profile?.role === 'admin'
 
-      if (!isAuthor && !isCollaborator && !isAdminOrMaster) {
+      if (!isAuthor && !isAdminOrMaster) {
         alert('수정 권한이 없습니다.')
         router.push(`/board/${category}/${id}`)
         return

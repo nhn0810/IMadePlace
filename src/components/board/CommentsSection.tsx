@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatDistanceToNow } from 'date-fns'
 import { Send, Trash2 } from 'lucide-react'
+import Link from 'next/link'
 
 export function CommentsSection({ postId, currentUser }: { postId: string, currentUser: any }) {
   const [comments, setComments] = useState<any[]>([])
@@ -117,7 +118,7 @@ export function CommentsSection({ postId, currentUser }: { postId: string, curre
           const canDelete = isAdmin || (currentUser && currentUser.id === c.author_id)
           return (
             <div key={c.id} className="group flex gap-4">
-              <div className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden flex-shrink-0 mt-1">
+              <Link href={`/profile/${c.author_id}`} className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden flex-shrink-0 mt-1 hover:opacity-80 transition-opacity">
                 {c.profiles?.avatar_url ? (
                   <img src={c.profiles.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
                 ) : (
@@ -125,14 +126,14 @@ export function CommentsSection({ postId, currentUser }: { postId: string, curre
                     {c.profiles?.display_name?.[0]?.toUpperCase() || 'U'}
                   </div>
                 )}
-              </div>
+              </Link>
               
               <div className="flex-1 bg-white border border-slate-100 p-4 rounded-2xl rounded-tl-none shadow-sm">
                 <div className="flex justify-between items-start mb-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-slate-900">
+                    <Link href={`/profile/${c.author_id}`} className="font-semibold text-slate-900 hover:text-emerald-600 transition-colors">
                       {c.profiles?.display_name || 'Anonymous'}
-                    </span>
+                    </Link>
                     {c.profiles?.role === 'master' && (
                       <span className="px-1.5 py-[2px] rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold uppercase tracking-wider">Master</span>
                     )}
