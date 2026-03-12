@@ -15,7 +15,6 @@ export default function MyProjectsPage() {
   const [user, setUser] = useState<any>(null)
   const [data, setData] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [activeChatRoom, setActiveChatRoom] = useState<string | null>(null) // Project ID for group chat
   const supabase = createClient()
 
   useEffect(() => {
@@ -97,11 +96,6 @@ export default function MyProjectsPage() {
         await supabase.from('notifications')
           .delete()
           .match({ user_id: session.user.id, type: 'apply-request' })
-      }
-      
-      const chatParam = searchParams.get('chat')
-      if (chatParam) {
-        setActiveChatRoom(chatParam)
       }
     }
     loadData()
@@ -252,7 +246,7 @@ export default function MyProjectsPage() {
                      <div className="flex items-center gap-2">
                         {project.status === 'in_progress' && (
                           <button 
-                            onClick={() => setActiveChatRoom(project.id)}
+                            onClick={() => router.push(`/messages/group/${project.id}`)}
                             className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white hover:bg-emerald-600 rounded-xl text-xs font-bold transition-all shadow-sm"
                           >
                             <MessageSquare className="w-3.5 h-3.5" /> 팀 채팅
@@ -330,37 +324,6 @@ export default function MyProjectsPage() {
         )}
       </div>
 
-      {/* Group Chat Modal */}
-      {activeChatRoom && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-2xl h-[80vh] rounded-3xl overflow-hidden shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
-            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-               <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                 <MessageSquare className="w-4 h-4 text-emerald-500" />
-                 프로젝트 단체 채팅방
-               </h3>
-               <button 
-                 onClick={() => setActiveChatRoom(null)}
-                 className="p-2 hover:bg-slate-200 rounded-xl transition-colors"
-               >
-                 <CloseIcon className="w-5 h-5 text-slate-400" />
-               </button>
-            </div>
-            <div className="flex-1 overflow-hidden">
-               <ChatRoom 
-                 currentUserId={user?.id}
-                 roomId={activeChatRoom}
-                 markAsReadAction={async () => {
-                   await supabase.from('notifications')
-                     .delete()
-                     .match({ user_id: user?.id, project_id: activeChatRoom, type: 'group-message' })
-                 }}
-                 isProjectComplete={data.find(p => p.id === activeChatRoom)?.status === 'completed'}
-               />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

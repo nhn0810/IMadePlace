@@ -32,7 +32,7 @@ export default async function MessagesInboxPage() {
   // 1. Fetch user's projects to identify group rooms
   const { data: myPosts } = await supabase
     .from('posts')
-    .select('id, title, author_id, collaborator_ids')
+    .select('id, title, author_id, collaborator_ids, created_at')
     .or(`author_id.eq.${session.user.id},collaborator_ids.cs.{${session.user.id}}`)
   
   const myProjectIds = myPosts?.map(p => p.id) || []
@@ -53,21 +53,37 @@ export default async function MessagesInboxPage() {
     .gte('created_at', twoWeeksAgo)
     .order('created_at', { ascending: false })
 
-  // 3. Group messages into conversations
+  // 3. Initialize conversationsMap with ALL user's projects (even empty ones)
   const conversationsMap = new Map()
   
+  myPosts?.forEach(p => {
+    conversationsMap.set(`room_${p.id}`, {
+      isGroup: true,
+      id: p.id,
+      title: p.title || '알 수 없는 프로젝트',
+      lastMessage: '팀 대화를 시작해보세요!',
+      time: p.created_at || new Date().toISOString(),
+      unreadCount: 0,
+      user: null
+    })
+  })
+
+  // 4. Fill/Override with existing messages
   messages?.forEach(msg => {
-    let key, convData
+    let key
     
     if (msg.room_id) {
-      // Group Chat
       key = `room_${msg.room_id}`
-      if (!conversationsMap.has(key)) {
-        const project = projectMap.get(msg.room_id)
+      const existing = conversationsMap.get(key)
+      if (existing) {
+        existing.lastMessage = msg.content
+        existing.time = msg.created_at
+      } else {
+        // Safety: If for some reason the project wasn't in myPosts (e.g. deleted but message remains)
         conversationsMap.set(key, {
           isGroup: true,
           id: msg.room_id,
-          title: project?.title || '알 수 없는 프로젝트',
+          title: '참여 중이지 않은 프로젝트',
           lastMessage: msg.content,
           time: msg.created_at,
           unreadCount: 0,
@@ -94,12 +110,9 @@ export default async function MessagesInboxPage() {
     }
 
     // Unread count logic
-    // For DMs: is_read = false and I am the receiver
-    // For Group: requires chat_room_reads check. 
-    // Simplified: For now, if it's the latest and I haven't seen the room notification, it's unread.
-    // Actually, let's just use the is_read for DMs and a placeholder for group for now.
     if (!msg.is_read && msg.receiver_id === session.user.id) {
-       conversationsMap.get(key).unreadCount += 1
+       const target = conversationsMap.get(key)
+       if (target) target.unreadCount += 1
     }
   })
 
@@ -125,7 +138,7 @@ export default async function MessagesInboxPage() {
           {conversations.map(conv => (
             <Link 
               key={conv.id} 
-              href={conv.isGroup ? `/my-projects?tab=in_progress&chat=${conv.id}` : `/messages/${conv.id}`}
+              href={conv.isGroup ? `/messages/group/${conv.id}` : `/messages/${conv.id}`}
               className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-slate-200 hover:border-emerald-300 hover:shadow-sm transition-all group"
             >
               <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-100 flex-shrink-0 flex items-center justify-center">
@@ -166,7 +179,7 @@ export default async function MessagesInboxPage() {
                   </span>
                 </div>
                 <div className="flex justify-between items-center gap-2 mt-1">
-                  <p className={`text-sm truncate flex-1 min-w-0 ${conv.lastMessage === '새로운 대화 시작하기' ? 'text-emerald-500 font-medium' : 'text-slate-500'}`}>
+                  <p className={`text-sm truncate flex-1 min-w-0 ${['팀 대화를 시작해보세요!', '새로운 대화 시작하기'].includes(conv.lastMessage) ? 'text-emerald-500 font-medium italic' : 'text-slate-500 font-medium'}`}>
                     {conv.lastMessage}
                   </p>
                   {conv.unreadCount > 0 && (
