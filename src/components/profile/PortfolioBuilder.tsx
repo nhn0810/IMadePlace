@@ -6,7 +6,7 @@ import {
   Plus, Trash2, Download, Save, ArrowLeft, Image as ImageIcon, 
   Type, Square, Layers, Maximize2, Move, Layout, 
   ChevronRight, ChevronLeft, Type as TypeIcon,
-  Trash, Copy, Eye, FileJson, Minus
+  Trash, Copy, Eye, FileJson, Minus, Package
 } from 'lucide-react'
 import Link from 'next/link'
 import { toPng, toJpeg } from 'html-to-image'
@@ -37,14 +37,56 @@ interface CanvasElement {
 export function PortfolioBuilder({ profile, userProjects }: { profile: any; userProjects: any[] }) {
   const [elements, setElements] = useState<CanvasElement[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [zoom, setZoom] = useState(1)
+  const [zoom, setZoom] = useState(0.7) // Default to fit better
+  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait')
   const canvasRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
 
   const fonts = ['Inter', 'Roboto', 'Gmarket Sans', 'NanumSquare', 'System']
-
   const selectedElement = elements.find(el => el.id === selectedId)
+
+  // Auto-placement on load
+  useEffect(() => {
+    if (elements.length === 0) {
+      const initialElements: CanvasElement[] = []
+      
+      // Bio
+      if (profile.bio) {
+        initialElements.push({
+          id: 'bio-default',
+          type: 'text',
+          x: 50, y: 50, w: 700, h: 100,
+          content: profile.bio,
+          style: { zIndex: 1, opacity: 1, fontSize: 32, fontFamily: 'Inter', fontWeight: '800', textAlign: 'left', color: '#0f172a' }
+        })
+      }
+
+      // Skills
+      if (profile.skills && profile.skills.length > 0) {
+        initialElements.push({
+          id: 'skills-default',
+          type: 'skill_bar',
+          x: 50, y: 200, w: 340, h: 400,
+          content: '',
+          style: { zIndex: 2, opacity: 1 }
+        })
+      }
+
+      // Timeline
+      if (profile.work_history && profile.work_history.length > 0) {
+        initialElements.push({
+          id: 'timeline-default',
+          type: 'timeline',
+          x: 410, y: 200, w: 340, h: 400,
+          content: '',
+          style: { zIndex: 3, opacity: 1 }
+        })
+      }
+
+      if (initialElements.length > 0) setElements(initialElements)
+    }
+  }, [profile])
 
   // 1. Add Element
   const addElement = (type: ElementType, customContent?: any) => {
@@ -150,82 +192,106 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
       }
     }
     const handleMouseUp = () => setIsDragging(false)
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (selectedId && (e.key === 'Delete' || e.key === 'Backspace')) {
+        if (document.activeElement?.getAttribute('contenteditable') === 'true' || 
+            document.activeElement?.tagName === 'INPUT' || 
+            document.activeElement?.tagName === 'TEXTAREA') return
+            
+        setElements(prev => prev.filter(el => el.id !== selectedId))
+        setSelectedId(null)
+      }
+    }
 
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('mouseup', handleMouseUp)
+    window.addEventListener('keydown', handleKeyDown)
     return () => {
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
+      window.removeEventListener('keydown', handleKeyDown)
     }
   }, [isDragging, selectedId, dragOffset, zoom])
 
   return (
-    <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-slate-900 select-none">
-      {/* Sidebar - Assets */}
-      <div className="w-64 bg-slate-800 border-r border-slate-700 flex flex-col p-4 gap-6 overflow-y-auto z-20">
-        <div>
-          <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">기본 요소</h3>
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => addElement('text')} className="flex flex-col items-center gap-2 p-3 bg-slate-700 hover:bg-emerald-600 rounded-xl transition-all text-slate-300">
-              <TypeIcon className="w-5 h-5" />
-              <span className="text-[10px] font-bold">텍스트</span>
-            </button>
-            <button onClick={() => addElement('shape')} className="flex flex-col items-center gap-2 p-3 bg-slate-700 hover:bg-emerald-600 rounded-xl transition-all text-slate-300">
-              <Square className="w-5 h-5" />
-              <span className="text-[10px] font-bold">도형</span>
-            </button>
-            <button onClick={() => addElement('skill_bar')} className="flex flex-col items-center gap-2 p-3 bg-slate-700 hover:bg-emerald-600 rounded-xl transition-all text-slate-300">
-              <Layers className="w-5 h-5" />
-              <span className="text-[10px] font-bold">스킬 바</span>
-            </button>
-            <button onClick={() => addElement('timeline')} className="flex flex-col items-center gap-2 p-3 bg-slate-700 hover:bg-emerald-600 rounded-xl transition-all text-slate-300">
-              <Layout className="w-5 h-5" />
-              <span className="text-[10px] font-bold">연혁</span>
-            </button>
-          </div>
+    <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-[#0a0c10] select-none text-slate-300">
+      {/* Top Bar - Simplified */}
+      <div className="h-14 bg-slate-900/60 backdrop-blur-xl border-b border-white/5 flex items-center justify-between px-6 z-30">
+        <div className="flex items-center gap-4">
+          <Link href="/profile" className="p-2 hover:bg-white/5 rounded-xl transition-colors">
+            <ArrowLeft className="w-5 h-5 text-slate-400" />
+          </Link>
+          <div className="w-[1px] h-6 bg-white/10"></div>
+          <h1 className="text-xs font-black uppercase tracking-[0.3em] text-white/90">Portfolio Builder <span className="text-emerald-500 ml-2">V1.0</span></h1>
         </div>
 
-        <div>
-          <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">내 프로젝트</h3>
-          <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+        <div className="flex bg-slate-800/50 p-1 rounded-xl border border-white/5">
+           <button 
+             onClick={() => setOrientation('portrait')}
+             className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${orientation === 'portrait' ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+           >
+             PORTRAIT
+           </button>
+           <button 
+             onClick={() => setOrientation('landscape')}
+             className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${orientation === 'landscape' ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+           >
+             LANDSCAPE
+           </button>
+        </div>
+      </div>
+
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Floating Tools - Compact Left */}
+        <div className="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-20">
+          <div className="bg-slate-900/80 backdrop-blur-2xl border border-white/10 p-2 rounded-2xl shadow-2xl flex flex-col gap-2">
+            <button onClick={() => addElement('text')} title="Add Text" className="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-emerald-500 hover:text-white rounded-xl transition-all group">
+              <TypeIcon className="w-5 h-5" />
+            </button>
+            <button onClick={() => addElement('shape')} title="Add Shape" className="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-emerald-500 hover:text-white rounded-xl transition-all group">
+              <Square className="w-5 h-5" />
+            </button>
+            <button onClick={() => addElement('skill_bar')} title="Add Resume Skills" className="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-emerald-500 hover:text-white rounded-xl transition-all group">
+              <Layers className="w-5 h-5" />
+            </button>
+            <button onClick={() => addElement('timeline')} title="Add Resume Timeline" className="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-emerald-500 hover:text-white rounded-xl transition-all group">
+              <Layout className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="bg-slate-900/80 backdrop-blur-2xl border border-white/10 p-2 rounded-2xl shadow-2xl max-h-[300px] overflow-y-auto custom-scrollbar flex flex-col gap-2">
+            <div className="text-[8px] font-black text-slate-500 uppercase text-center py-1">Projects</div>
             {userProjects.map(p => (
               <button 
                 key={p.id}
                 onClick={() => addElement('project', p)}
-                className="w-full text-left p-3 bg-slate-700/50 hover:bg-emerald-600 rounded-xl text-xs text-slate-300 transition-all truncate font-medium"
+                title={p.title}
+                className="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-violet-600 hover:text-white rounded-xl transition-all truncate group overflow-hidden"
               >
-                {p.title}
+                {p.thumbnail_url ? <img src={p.thumbnail_url} className="w-full h-full object-cover" /> : <Package className="w-4 h-4 opacity-40" />}
               </button>
             ))}
           </div>
         </div>
 
-        <div className="mt-auto">
-          <label className="flex items-center justify-center gap-2 w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold cursor-pointer shadow-lg transition-all">
-            <FileJson className="w-4 h-4" />
-            템플릿 불러오기
-            <input type="file" accept=".json" onChange={handleJsonUpload} className="hidden" />
-          </label>
-        </div>
-      </div>
-
-      {/* Main Canvas Area */}
-      <div className="flex-1 relative overflow-auto bg-slate-950 flex items-center justify-center dashboard-grid">
-        <div 
-          ref={canvasRef}
-          className="bg-white shadow-2xl relative shrink-0 overflow-hidden"
-          style={{ 
-            width: '800px', 
-            height: '1131px', // A4 Aspect Ratio 
-            transform: `scale(${zoom})`,
-            transition: isDragging ? 'none' : 'transform 0.2s'
-          }}
-        >
+        {/* Main Canvas Area */}
+        <div className="flex-1 relative overflow-auto flex items-center justify-center dashboard-grid bg-[#0a0c10] pt-10 pb-20">
+          <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/5 via-transparent to-violet-500/5 pointer-events-none"></div>
+          <div 
+            ref={canvasRef}
+            className="bg-white shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] relative shrink-0 overflow-hidden"
+            style={{ 
+              width: orientation === 'portrait' ? '800px' : '1131px', 
+              height: orientation === 'portrait' ? '1131px' : '800px', 
+              transform: `scale(${zoom})`,
+              transition: isDragging ? 'none' : 'transform 0.2s, width 0.3s, height 0.3s'
+            }}
+          >
           {elements.map(el => (
             <div
               key={el.id}
               onMouseDown={(e) => onMouseDown(el.id, e)}
-              className={`absolute cursor-move overflow-hidden transition-shadow ${selectedId === el.id ? 'ring-2 ring-emerald-400 shadow-xl z-50' : ''}`}
+              className={`absolute cursor-move overflow-hidden transition-all duration-300 ${selectedId === el.id ? 'ring-[3px] ring-emerald-400 ring-offset-[3px] ring-offset-white shadow-[0_20px_50px_rgba(0,0,0,0.15)] z-50 rounded-lg' : 'hover:ring-1 hover:ring-slate-300'}`}
               style={{
                 left: `${el.x}px`,
                 top: `${el.y}px`,
@@ -234,7 +300,8 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                 zIndex: el.style.zIndex,
                 opacity: el.style.opacity,
                 backgroundColor: el.style.backgroundColor,
-                transform: 'translateZ(0)'
+                transform: `translateZ(0) ${selectedId === el.id ? 'scale(1.02)' : 'scale(1)'}`,
+                boxShadow: selectedId === el.id ? 'none' : '0 2px 10px rgba(0,0,0,0.02)'
               }}
             >
               {el.type === 'text' && (
@@ -258,35 +325,42 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
               {el.type === 'shape' && <div className="w-full h-full" />}
 
               {el.type === 'project' && (
-                <div className="w-full h-full flex flex-col bg-white border border-slate-100 shadow-sm rounded-lg overflow-hidden">
-                  <div className="h-40 bg-slate-100 relative">
+                <div className="w-full h-full flex flex-col bg-white/95 backdrop-blur-sm border border-slate-100 shadow-[0_15px_30px_-10px_rgba(0,0,0,0.1)] rounded-[32px] overflow-hidden group/card relative">
+                  <div className="h-48 bg-slate-50 relative overflow-hidden">
                     {el.content.thumbnail_url ? (
-                      <img src={el.content.thumbnail_url} className="w-full h-full object-cover" />
+                      <img src={el.content.thumbnail_url} className="w-full h-full object-cover group-hover/card:scale-110 transition-transform duration-700" alt="thumbnail" />
                     ) : (
-                       <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon /></div>
+                       <div className="w-full h-full flex items-center justify-center text-slate-200 bg-slate-50"><ImageIcon className="w-12 h-12" /></div>
                     )}
+                    <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white to-transparent"></div>
                   </div>
-                  <div className="p-4 flex-1">
-                    <h4 className="font-bold text-slate-800 mb-1">{el.content.title}</h4>
-                    <p className="text-[11px] text-slate-500 line-clamp-3">{el.content.short_description || el.content.content}</p>
+                  <div className="p-7 flex-1 flex flex-col pt-0 transform -translate-y-4">
+                    <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-2 px-3 py-1 bg-emerald-50 rounded-full w-fit">Featured Project</span>
+                    <h4 className="font-extrabold text-slate-900 text-xl mb-3 tracking-tight">{el.content.title}</h4>
+                    <p className="text-[12px] text-slate-500 line-clamp-4 leading-relaxed font-medium">{el.content.short_description || el.content.content}</p>
+                    <div className="mt-auto pt-6 flex items-center gap-2">
+                       <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200"></div>
+                       <span className="text-[10px] font-bold text-slate-400">View Presentation →</span>
+                    </div>
                   </div>
                 </div>
               )}
 
               {el.type === 'skill_bar' && (
-                <div className="w-full p-4 space-y-3">
+                <div className="w-full p-8 space-y-5 bg-white shadow-xl rounded-[24px]">
+                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest border-b pb-4 border-slate-50">Technical Expertise</h3>
                   {(profile.skills || []).map((s: any, i: number) => (
-                    <div key={i} className="space-y-1">
-                      <div className="flex justify-between text-[11px] font-bold text-slate-700">
-                        <span>{s.name}</span>
-                        <span>{s.level}%</span>
+                    <div key={i} className="space-y-2">
+                      <div className="flex justify-between text-[11px] font-black text-slate-700">
+                        <span className="tracking-tight">{s.name}</span>
+                        <span className="text-emerald-500">{s.level}%</span>
                       </div>
-                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-emerald-500" style={{ width: `${s.level}%` }}></div>
+                      <div className="w-full h-2.5 bg-slate-50 rounded-full overflow-hidden border border-slate-100 p-[1px]">
+                        <div className="h-full bg-gradient-to-r from-emerald-400 to-teal-500 rounded-full transition-all duration-1000 ease-out" style={{ width: `${s.level}%` }}></div>
                       </div>
                     </div>
                   ))}
-                  {(!profile.skills || profile.skills.length === 0) && <div className="text-[10px] text-slate-400 italic">스킬 데이터가 없습니다.</div>}
+                  {(!profile.skills || profile.skills.length === 0) && <div className="text-[11px] text-slate-400 italic text-center py-4">No skill data found.</div>}
                 </div>
               )}
 
@@ -309,42 +383,58 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
         </div>
 
         {/* Zoom Controls */}
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-800/80 backdrop-blur-md px-6 py-3 rounded-2xl flex items-center gap-6 border border-slate-700 shadow-2xl z-30">
-          <button onClick={() => setZoom(Math.max(0.1, zoom - 0.1))} className="text-slate-400 hover:text-white p-1 transition-colors"><Minus className="w-4 h-4" /></button>
-          <span className="text-xs font-black text-slate-300 w-12 text-center">{Math.round(zoom * 100)}%</span>
-          <button onClick={() => setZoom(Math.min(2, zoom + 0.1))} className="text-slate-400 hover:text-white p-1 transition-colors"><Plus className="w-4 h-4" /></button>
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900/80 backdrop-blur-3xl px-8 py-4 rounded-[24px] flex items-center gap-10 border border-white/10 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)] z-30 group/zoom">
+          <button onClick={() => setZoom(Math.max(0.1, zoom - 0.1))} className="text-slate-500 hover:text-white p-2 transition-all hover:bg-white/5 rounded-xl"><Minus className="w-5 h-5" /></button>
+          <div className="flex flex-col items-center">
+             <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Scale</span>
+             <span className="text-[13px] font-black text-white w-14 text-center tabular-nums">{Math.round(zoom * 100)}%</span>
+          </div>
+          <button onClick={() => setZoom(Math.min(2, zoom + 0.1))} className="text-slate-500 hover:text-white p-2 transition-all hover:bg-white/5 rounded-xl"><Plus className="w-5 h-5" /></button>
+          <div className="w-[1px] h-8 bg-white/10 mx-2"></div>
+          <button onClick={() => setZoom(1)} className="text-[10px] font-black text-emerald-400 hover:text-emerald-300 uppercase tracking-widest">Reset</button>
         </div>
       </div>
 
       {/* Right Properties Panel */}
-      <div className="w-72 bg-slate-800 border-l border-slate-700 flex flex-col z-20 overflow-y-auto">
+      <div className="w-80 bg-slate-900/60 backdrop-blur-2xl border-l border-white/5 flex flex-col z-20 overflow-y-auto shadow-2xl">
         {selectedElement ? (
-          <div className="p-6 space-y-8">
+          <div className="p-8 space-y-10">
             <div className="flex justify-between items-center">
-              <h3 className="font-bold text-slate-200">스타일 편집</h3>
-              <button onClick={() => { setElements(elements.filter(el => el.id !== selectedId)); setSelectedId(null); }} className="p-1.5 text-slate-500 hover:text-rose-400">
-                <Trash2 className="w-4 h-4" />
+              <div className="flex flex-col">
+                <h3 className="font-black text-white tracking-widest text-[10px] uppercase mb-1">Properties</h3>
+                <span className="text-[11px] text-slate-500 font-bold capitalize">{selectedElement.type} Element</span>
+              </div>
+              <button 
+                onClick={() => { setElements(elements.filter(el => el.id !== selectedId)); setSelectedId(null); }} 
+                className="p-3 text-slate-500 hover:text-white hover:bg-rose-500/20 rounded-2xl transition-all border border-transparent hover:border-rose-500/30"
+              >
+                <Trash2 className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-8">
               {/* Common: Opacity & Z-Index */}
-              <div className="space-y-3">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">배치 & 투명도</label>
-                <div className="flex items-center gap-4">
-                  <div className="flex-1">
+              <div className="space-y-5">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                   <Layers className="w-3.5 h-3.5" /> Arrangement
+                </label>
+                <div className="bg-slate-800/50 p-5 rounded-[24px] border border-white/5 space-y-6">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                       <span className="text-[10px] font-bold text-slate-400">Opacity</span>
+                       <span className="text-[11px] font-black text-emerald-400">{Math.round((selectedElement.style.opacity || 1) * 100)}%</span>
+                    </div>
                     <input 
                       type="range" min="0" max="1" step="0.1" 
                       value={selectedElement.style.opacity} 
                       onChange={(e) => selectedId && updateStyle(selectedId, { opacity: parseFloat(e.target.value) })}
-                      className="w-full accent-emerald-500"
+                      className="w-full accent-emerald-500 h-1.5 rounded-full bg-slate-700 appearance-none cursor-pointer"
                     />
                   </div>
-                  <span className="text-xs text-slate-400">{Math.round((selectedElement.style.opacity || 1) * 100)}%</span>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => selectedId && updateStyle(selectedId, { zIndex: (selectedElement.style.zIndex || 0) + 1 })} className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-[10px] font-bold text-slate-300">앞으로</button>
-                  <button onClick={() => selectedId && updateStyle(selectedId, { zIndex: Math.max(0, (selectedElement.style.zIndex || 0) - 1) })} className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-[10px] font-bold text-slate-300">뒤로</button>
+                  <div className="flex gap-3">
+                    <button onClick={() => selectedId && updateStyle(selectedId, { zIndex: (selectedElement.style.zIndex || 0) + 1 })} className="flex-1 py-3 bg-slate-700/50 hover:bg-slate-700 border border-white/5 hover:border-white/10 rounded-xl text-[10px] font-black text-slate-200 transition-all active:scale-95">MOVE FRONT</button>
+                    <button onClick={() => selectedId && updateStyle(selectedId, { zIndex: Math.max(0, (selectedElement.style.zIndex || 0) - 1) })} className="flex-1 py-3 bg-slate-700/50 hover:bg-slate-700 border border-white/5 hover:border-white/10 rounded-xl text-[10px] font-black text-slate-200 transition-all active:scale-95">MOVE BACK</button>
+                  </div>
                 </div>
               </div>
 
@@ -423,15 +513,15 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
         )}
 
         {/* Save/Export Panel */}
-        <div className="mt-auto p-6 border-t border-slate-700 bg-slate-800/50 space-y-3">
-          <button onClick={exportJson} className="w-full py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2">
-             <Save className="w-4 h-4" /> 템플릿 파일 저장
+        <div className="mt-auto p-8 border-t border-white/5 bg-slate-900/80 backdrop-blur-xl space-y-4 shadow-[0_-20px_40px_rgba(0,0,0,0.2)]">
+          <button onClick={exportJson} className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/5 rounded-[20px] text-[11px] font-black transition-all flex items-center justify-center gap-2 uppercase tracking-widest active:scale-95">
+             <Save className="w-4 h-4 text-emerald-400" /> Save Template
           </button>
           <div className="flex gap-2">
-            <button onClick={() => downloadImage('png')} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-2">
-              <Download className="w-3.5 h-3.5" /> PNG
+            <button onClick={() => downloadImage('png')} className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-400 text-white rounded-[20px] text-[11px] font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95 uppercase tracking-tighter">
+              <Download className="w-4 h-4" /> PNG Export
             </button>
-            <button onClick={() => downloadImage('jpg')} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-2">
+            <button onClick={() => downloadImage('jpg')} className="flex-1 py-4 bg-white/10 hover:bg-white/20 text-white rounded-[20px] text-[11px] font-black transition-all flex items-center justify-center gap-2 active:scale-95 uppercase tracking-tighter">
                JPG
             </button>
           </div>
@@ -440,20 +530,22 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
 
       <style jsx global>{`
         .dashboard-grid {
-          background-image: radial-gradient(#334155 1px, transparent 1px);
-          background-size: 20px 20px;
+          background-image: 
+            linear-gradient(#1a1d23 1px, transparent 1px),
+            linear-gradient(90deg, #1a1d23 1px, transparent 1px);
+          background-size: 40px 40px;
         }
         .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
+          width: 5px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
-          background: #1e293b;
+          background: rgba(15, 23, 42, 0.4);
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #475569;
-          border-radius: 10px;
+          background: rgba(71, 85, 105, 0.4);
         }
       `}</style>
+      </div>
     </div>
   )
 }
