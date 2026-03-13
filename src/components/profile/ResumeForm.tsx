@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Trash2, Save, ArrowLeft, Briefcase, Award, AlignLeft } from 'lucide-react'
+import { Plus, Trash2, Save, ArrowLeft, Briefcase, Award, AlignLeft, Layout } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -83,14 +83,23 @@ export function ResumeForm({ initialData }: { initialData: any }) {
           </Link>
           <h1 className="text-2xl font-bold text-slate-900">포트폴리오 정보 관리</h1>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={loading}
-          className="flex items-center gap-2 px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl transition-all shadow-md active:scale-95 disabled:opacity-50"
-        >
-          <Save className="w-4 h-4" />
-          {loading ? '저장 중...' : '저장하기'}
-        </button>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/profile/builder"
+            className="flex items-center gap-2 px-5 py-2.5 bg-slate-800 text-slate-200 hover:bg-slate-900 font-bold rounded-xl transition-all shadow-md active:scale-95"
+          >
+            <Layout className="w-4 h-4" />
+            빌더로 이동
+          </Link>
+          <button
+            onClick={handleSave}
+            disabled={loading}
+            className="flex items-center gap-2 px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl transition-all shadow-md active:scale-95 disabled:opacity-50"
+          >
+            <Save className="w-4 h-4" />
+            {loading ? '저장 중...' : '저장하기'}
+          </button>
+        </div>
       </header>
 
       <div className="space-y-8">

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { MessageSquare, LayoutList, LogOut, Settings, FileText } from 'lucide-react'
+import { MessageSquare, LayoutList, LogOut, Settings, FileText, Layout } from 'lucide-react'
 import { PostList } from '@/components/board/PostList'
 
 export const dynamic = 'force-dynamic'
@@ -88,6 +88,10 @@ export default async function ProfilePage({ searchParams }: { searchParams: { ta
           <Link href="/profile/resume" className="px-5 py-2.5 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 font-medium transition-colors text-sm flex items-center gap-2">
             <FileText className="w-4 h-4" />
             포트폴리오 정보
+          </Link>
+          <Link href="/profile/builder" className="px-5 py-2.5 rounded-full bg-emerald-600 text-white hover:bg-emerald-700 font-bold transition-all text-sm flex items-center gap-2 shadow-md active:scale-95">
+            <Layout className="w-4 h-4" />
+            포트폴리오 빌더
           </Link>
           <Link href="/settings" className="px-5 py-2.5 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium transition-colors text-sm flex items-center gap-2">
             <Settings className="w-4 h-4" />
