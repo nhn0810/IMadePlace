@@ -170,18 +170,12 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
     }
 
     if (!useTemplate) {
-      if (profile.bio) {
-        newElements.push({
-          id: 'bio-simple', type: 'text', x: 50, y: 50, w: 700, h: 100,
-          content: profile.bio, style: { zIndex: 1, fontSize: 32, fontFamily: 'Inter', fontWeight: '800', textAlign: 'left', color: '#0f172a', opacity: 1 }
-        })
-      }
-      setElements(newElements)
+      setElements([]) // Start clean
       setShowWizard(false)
       return
     }
 
-    // Page 1: Bio
+    // Page 1: Bio (Always starts at 50)
     newElements.push({
       id: 'profile-img', type: 'image', x: 50, y: 50, w: 200, h: 200,
       content: { url: profile.avatar_url || '', focus: { x: 50, y: 50 } },
@@ -198,7 +192,7 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
       style: { zIndex: 12, fontSize: 20, fontWeight: '500', color: '#64748b', opacity: 1 }
     })
 
-    // Skills & Timeline (Auto-add to sidebar area or next page)
+    // Skills & Timeline (Auto-add below bio if they fit, or next page)
     if ((profile.skills?.length || 0) > 0) {
       newElements.push({
         id: 'auto-skills', type: 'skill_bar', x: 50, y: 300, w: 340, h: 300,
@@ -228,11 +222,9 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
           style: { zIndex: 21 + i, fontSize: 13, backgroundColor: '#f9fafb', borderRadius: 20, opacity: 1, color: '#374151' }
         })
       })
-      // Adjust currentY for CV height
-      currentY += (Math.ceil(cvs.length / 3) * 200) + 100
     }
 
-    // Page 3+: Projects
+    // Page 3+: Projects (Each on its own page to avoid overlap issues)
     const selectedProjectsData = userProjects.filter(p => wizardConfig.selectedProjectIds.includes(p.id))
     selectedProjectsData.forEach((project, idx) => {
       const isFullPage = wizardConfig.fullPageProjects[project.id]
@@ -248,11 +240,6 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
         content: project,
         style: { zIndex: 50 + idx, opacity: 1 }
       })
-      
-      if (isFullPage) {
-        // Force next project to a new page
-        currentY += 100 
-      }
     })
 
     setElements(newElements)
