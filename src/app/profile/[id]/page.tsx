@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { notFound, useRouter, useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { MessageSquare, LayoutList, ArrowLeft, Lock, Loader2 } from 'lucide-react'
+import { MessageSquare, LayoutList, ArrowLeft, Lock, Loader2, Award, Briefcase, AlignLeft, Layout, FileText } from 'lucide-react'
 import { PostList } from '@/components/board/PostList'
 
 export default function PublicProfilePage() {
@@ -31,7 +31,7 @@ export default function PublicProfilePage() {
 
       const { data: pData, error } = await supabase
         .from('profiles')
-        .select('id, display_name, avatar_url, role, hide_comments')
+        .select('id, display_name, avatar_url, role, hide_comments, bio, skills, work_history, intro_sections, show_resume')
         .eq('id', id)
         .single()
 
@@ -112,18 +112,90 @@ export default function PublicProfilePage() {
         </div>
         
         <div className="flex flex-wrap items-center justify-center gap-3 mt-2 z-10">
-          {!isMe && (
+          {isMe ? (
+            <>
+              <Link href="/profile/resume" className="px-5 py-2.5 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold transition-colors text-sm flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                정보 관리
+              </Link>
+              <Link href="/profile/builder" className="px-5 py-2.5 rounded-full bg-emerald-600 text-white hover:bg-emerald-700 font-bold transition-all text-sm flex items-center gap-2 shadow-md active:scale-95">
+                <Layout className="w-4 h-4" />
+                포트폴리오 빌더
+              </Link>
+            </>
+          ) : (
             <Link href={`/messages/${id}`} className="px-5 py-2.5 rounded-full bg-emerald-500 text-white hover:bg-emerald-600 font-bold transition-colors text-sm flex items-center gap-2 shadow-sm">
               <MessageSquare className="w-4 h-4" />
               Direct Message 보내기
             </Link>
           )}
-          {isMe && (
-            <Link href="/profile" className="px-5 py-2.5 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 font-bold transition-colors text-sm flex items-center gap-2">
-              내 프로필 관리로 이동
-            </Link>
-          )}
         </div>
+
+        {/* Resume Content (Public or Me) */}
+        {(profile.show_resume || isMe) && (
+          <div className="w-full mt-8 pt-8 border-t border-slate-100 text-left space-y-8">
+            {profile.bio && (
+              <div className="relative p-6 bg-slate-50 rounded-2xl border border-slate-100">
+                <AlignLeft className="w-4 h-4 text-emerald-500 absolute top-4 left-4" />
+                <p className="pl-6 text-slate-700 font-medium whitespace-pre-wrap">{profile.bio}</p>
+              </div>
+            )}
+
+            {profile.skills && profile.skills.length > 0 && (
+              <div>
+                <h3 className="flex items-center gap-2 text-sm font-black text-slate-800 mb-4 px-2">
+                  <Award className="w-4 h-4 text-emerald-500" />
+                  Technical Skills
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {(profile.skills as any[]).map((s: any, i: number) => (
+                    <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-xs font-bold text-slate-700">{s.name}</span>
+                        <span className="text-[10px] font-black text-emerald-500">{s.level}%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: `${s.level}%` }}></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {profile.work_history && profile.work_history.length > 0 && (
+              <div>
+                <h3 className="flex items-center gap-2 text-sm font-black text-slate-800 mb-4 px-2">
+                  <Briefcase className="w-4 h-4 text-emerald-500" />
+                  Work Experience
+                </h3>
+                <div className="space-y-4">
+                  {(profile.work_history as any[]).map((h: any, i: number) => (
+                    <div key={i} className="flex gap-4 p-5 bg-white rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden group">
+                      <div className="w-1.5 h-full bg-emerald-500 absolute left-0 top-0"></div>
+                      <div className="min-w-[80px]">
+                        <div className="text-xs font-black text-emerald-600">{h.year}</div>
+                        {h.duration && <div className="text-[10px] text-slate-400">{h.duration}</div>}
+                      </div>
+                      <div className="flex-1 text-sm text-slate-700 font-medium">{h.content}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {profile.intro_sections && Object.entries(profile.intro_sections).some(([_, val]) => !!val) && (
+              <div className="space-y-4">
+                {Object.entries(profile.intro_sections).map(([q, a], i) => a && (
+                  <div key={i} className="p-6 bg-emerald-50/50 rounded-2xl border border-emerald-100/50">
+                    <h4 className="text-xs font-black text-emerald-700 mb-2">Q. {q}</h4>
+                    <p className="text-sm text-slate-700 leading-relaxed">{a as string}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </header>
 
       {/* Tabs */}

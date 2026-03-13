@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Trash2, Save, ArrowLeft, Briefcase, Award, AlignLeft, Layout } from 'lucide-react'
+import { Plus, Trash2, Save, ArrowLeft, Briefcase, Award, AlignLeft, Layout, Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -21,6 +21,7 @@ export function ResumeForm({ initialData }: { initialData: any }) {
     "자신을 한마디로 표현한다면?": "",
     "개발자로서의 강점은 무엇인가요?": ""
   })
+  const [showResume, setShowResume] = useState(initialData.show_resume || false)
 
   const handleAddSkill = () => {
     setSkills([...skills, { name: '', level: 50 }])
@@ -59,7 +60,8 @@ export function ResumeForm({ initialData }: { initialData: any }) {
           bio,
           skills,
           work_history: history,
-          intro_sections: introSections
+          intro_sections: introSections,
+          show_resume: showResume
         })
         .eq('id', initialData.id)
 
@@ -105,9 +107,22 @@ export function ResumeForm({ initialData }: { initialData: any }) {
       <div className="space-y-8">
         {/* Bio Section */}
         <section className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-          <div className="flex items-center gap-2 mb-4 text-slate-800 font-bold">
-            <AlignLeft className="w-5 h-5 text-emerald-500" />
-            나를 소개하는 문구
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 text-slate-800 font-bold">
+              <AlignLeft className="w-5 h-5 text-emerald-500" />
+              나를 소개하는 문구
+            </div>
+            <button
+              onClick={() => setShowResume(!showResume)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                showResume 
+                  ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' 
+                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+              }`}
+            >
+              {showResume ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+              {showResume ? '다른 사람에게 공개됨' : '현재 나만 보기'}
+            </button>
           </div>
           <textarea
             value={bio}
