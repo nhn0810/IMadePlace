@@ -185,18 +185,32 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
     newElements.push({
       id: 'profile-img', type: 'image', x: 50, y: 50, w: 200, h: 200,
       content: { url: profile.avatar_url || '', focus: { x: 50, y: 50 } },
-      style: { zIndex: 10, borderRadius: 20, opacity: 1 }
+      style: { zIndex: 10, borderRadius: 20, opacity: 1, backgroundColor: '#f1f5f9' }
     })
     newElements.push({
       id: 'profile-name', type: 'text', x: 280, y: 50, w: 500, h: 60,
-      content: profile.display_name,
+      content: profile.display_name || '이름을 입력하세요',
       style: { zIndex: 11, fontSize: 48, fontWeight: '900', color: '#1e293b', opacity: 1 }
     })
     newElements.push({
       id: 'profile-bio', type: 'text', x: 280, y: 120, w: 450, h: 100,
-      content: profile.bio || 'Short Bio Here',
+      content: profile.bio || '자신을 소개하는 멋진 자기소개를 입력해보세요.',
       style: { zIndex: 12, fontSize: 20, fontWeight: '500', color: '#64748b', opacity: 1 }
     })
+
+    // Skills & Timeline (Auto-add to sidebar area or next page)
+    if ((profile.skills?.length || 0) > 0) {
+      newElements.push({
+        id: 'auto-skills', type: 'skill_bar', x: 50, y: 300, w: 340, h: 300,
+        content: {}, style: { zIndex: 15, opacity: 1 }
+      })
+    }
+    if ((profile.work_history?.length || 0) > 0) {
+      newElements.push({
+        id: 'auto-timeline', type: 'timeline', x: 410, y: 300, w: 340, h: 300,
+        content: {}, style: { zIndex: 16, opacity: 1 }
+      })
+    }
 
     // Page 2: Core Values
     const cvs = profile.core_values || []
@@ -209,14 +223,16 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
       })
       cvs.forEach((cv: any, i: number) => {
         newElements.push({
-          id: `cv-${i}`, type: 'text', x: 50 + (i * 240), y: currentY + 60, w: 220, h: 180,
+          id: `cv-${i}`, type: 'text', x: 50 + ((i % 3) * 240), y: currentY + 60 + (Math.floor(i / 3) * 200), w: 220, h: 180,
           content: `**${cv.title}**\n${cv.content}`,
           style: { zIndex: 21 + i, fontSize: 13, backgroundColor: '#f9fafb', borderRadius: 20, opacity: 1, color: '#374151' }
         })
       })
+      // Adjust currentY for CV height
+      currentY += (Math.ceil(cvs.length / 3) * 200) + 100
     }
 
-    // Page 3: Projects
+    // Page 3+: Projects
     const selectedProjectsData = userProjects.filter(p => wizardConfig.selectedProjectIds.includes(p.id))
     selectedProjectsData.forEach((project, idx) => {
       addPageBreak()
@@ -256,7 +272,7 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
               </div>
             ) : (
               <div className="space-y-4">
-                <p className="text-sm font-bold text-slate-400">Select projects to include (Max 4):</p>
+                <p className="text-sm font-bold text-slate-400">Select projects to include:</p>
                 <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                   {userProjects.map(p => (
                     <div key={p.id} className="flex items-center gap-3 p-4 bg-white/5 rounded-xl border border-white/5">
@@ -265,7 +281,7 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                         checked={wizardConfig.selectedProjectIds.includes(p.id)}
                         onChange={(e) => {
                           const ids = e.target.checked ? [...wizardConfig.selectedProjectIds, p.id] : wizardConfig.selectedProjectIds.filter(id => id !== p.id)
-                          setWizardConfig({...wizardConfig, selectedProjectIds: ids.slice(0, 4)})
+                          setWizardConfig({...wizardConfig, selectedProjectIds: ids})
                         }}
                       />
                       <span className="text-sm text-white font-bold">{p.title}</span>
@@ -321,17 +337,35 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
 
         {/* Canvas Area */}
         <div className="flex-1 relative overflow-auto flex items-center justify-center bg-[#0a0c10] dashboard-grid pt-10 pb-20">
-          <div ref={canvasRef} className="bg-white shadow-2xl relative shrink-0 overflow-hidden" 
+          <div 
+            ref={canvasRef} 
+            className="bg-white shadow-2xl relative shrink-0 overflow-hidden" 
             style={{ 
               width: orientation === 'portrait' ? '800px' : '1131px', 
-              height: orientation === 'portrait' ? '1131px' : '800px', 
+              height: `${Math.max(orientation === 'portrait' ? 1131 : 800, ...elements.map(el => el.y + el.h + 50))}px`, 
               transform: `scale(${zoom})`,
+              transformOrigin: 'top center',
               transition: isDragging ? 'none' : 'transform 0.2s'
             }}>
+            {/* Page Guide Lines */}
+            {Array.from({ length: Math.ceil(Math.max(0, ...elements.map(el => el.y + el.h)) / (orientation === 'portrait' ? 1131 : 800)) }).map((_, i) => (
+              <div key={i} className="absolute w-full border-b border-dashed border-slate-200 pointer-events-none" style={{ top: (i + 1) * (orientation === 'portrait' ? 1131 : 800) }}></div>
+            ))}
+
             {elements.map(el => (
               <div key={el.id} onMouseDown={(e) => onMouseDown(el.id, e)} className={`absolute cursor-move ${selectedId === el.id ? 'ring-2 ring-emerald-500' : ''}`}
                 style={{ left: el.x, top: el.y, width: el.w, height: el.h, zIndex: el.style.zIndex, opacity: el.style.opacity, backgroundColor: el.style.backgroundColor }}>
                 {el.type === 'text' && <div contentEditable onBlur={(e) => updateElement(el.id, { content: e.currentTarget.textContent })} className="w-full h-full p-2 outline-none" style={{ fontSize: el.style.fontSize, fontFamily: el.style.fontFamily, color: el.style.color, textAlign: el.style.textAlign }}>{el.content}</div>}
+                {el.type === 'image' && (
+                  <div className="w-full h-full relative group" style={{ borderRadius: el.style.borderRadius, overflow: 'hidden' }}>
+                    <img 
+                      src={el.content.url} 
+                      className="w-full h-full object-cover" 
+                      style={{ objectPosition: `${el.content.focus?.x || 50}% ${el.content.focus?.y || 50}%` }}
+                    />
+                  </div>
+                )}
+                {el.type === 'shape' && <div className="w-full h-full" style={{ borderRadius: el.style.borderRadius }}></div>}
                 {el.type === 'project' && (
                   <div className="w-full h-full flex flex-col bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-lg group">
                     <div 
