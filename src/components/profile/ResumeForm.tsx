@@ -21,9 +21,13 @@ export function ResumeForm({ initialData }: { initialData: any }) {
     "자신을 한마디로 표현한다면?": "",
     "개발자로서의 강점은 무엇인가요?": ""
   })
+  const [coreValues, setCoreValues] = useState<any[]>(initialData.core_values || [])
   const [showResume, setShowResume] = useState(initialData.show_resume || false)
 
   const handleAddSkill = () => {
+    if (skills.length >= 7) {
+      alert('스위트 7개까지만 선택해주시는 것이 포트폴리오 디자인상 가장 예쁩니다!')
+    }
     setSkills([...skills, { name: '', level: 50 }])
   }
 
@@ -51,6 +55,20 @@ export function ResumeForm({ initialData }: { initialData: any }) {
     setHistory(history.filter((_, i) => i !== index))
   }
 
+  const handleAddCoreValue = () => {
+    setCoreValues([...coreValues, { title: '', content: '' }])
+  }
+
+  const handleUpdateCoreValue = (index: number, field: string, value: string) => {
+    const next = [...coreValues]
+    next[index] = { ...next[index], [field]: value }
+    setCoreValues(next)
+  }
+
+  const handleRemoveCoreValue = (index: number) => {
+    setCoreValues(coreValues.filter((_, i) => i !== index))
+  }
+
   const handleSave = async () => {
     setLoading(true)
     try {
@@ -61,6 +79,7 @@ export function ResumeForm({ initialData }: { initialData: any }) {
           skills,
           work_history: history,
           intro_sections: introSections,
+          core_values: coreValues,
           show_resume: showResume
         })
         .eq('id', initialData.id)
@@ -235,6 +254,52 @@ export function ResumeForm({ initialData }: { initialData: any }) {
             ))}
             {history.length === 0 && (
               <p className="text-center py-8 text-slate-400 text-sm italic">추가된 이력 사항이 없습니다.</p>
+            )}
+          </div>
+        </section>
+
+        {/* Core Values Section */}
+        <section className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 text-slate-800 font-bold">
+              <Award className="w-5 h-5 text-emerald-500" />
+              핵심 가치 (Core Values)
+            </div>
+            <button
+              onClick={handleAddCoreValue}
+              className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              가치 추가
+            </button>
+          </div>
+          
+          <div className="space-y-4">
+            {coreValues.map((cv, index) => (
+              <div key={index} className="p-4 bg-slate-50 rounded-2xl relative group border border-transparent hover:border-slate-200 transition-all">
+                <button
+                  onClick={() => handleRemoveCoreValue(index)}
+                  className="absolute top-4 right-4 p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-all"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+                <input
+                  type="text"
+                  value={cv.title}
+                  onChange={(e) => handleUpdateCoreValue(index, 'title', e.target.value)}
+                  placeholder="가치 제목 (예: 효율적인 로직 설계)"
+                  className="w-full bg-white mb-2 border-slate-200 px-4 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-sm font-bold"
+                />
+                <textarea
+                  value={cv.content}
+                  onChange={(e) => handleUpdateCoreValue(index, 'content', e.target.value)}
+                  placeholder="해당 가치에 대한 설명을 입력하세요."
+                  className="w-full h-24 p-4 bg-white border border-slate-100 rounded-xl focus:ring-2 focus:ring-emerald-500/50 transition-all text-slate-800 text-sm"
+                />
+              </div>
+            ))}
+            {coreValues.length === 0 && (
+              <p className="text-center py-8 text-slate-400 text-sm italic">추가된 핵심 가치가 없습니다.</p>
             )}
           </div>
         </section>
