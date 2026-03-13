@@ -39,7 +39,7 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
   const [elements, setElements] = useState<CanvasElement[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [zoom, setZoom] = useState(0.7)
-  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait')
+  const orientation = 'landscape' // Force landscape
   const canvasRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
@@ -202,45 +202,33 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
     // Page 1: Bio
     newElements.push({
       id: 'header-banner', pageId: 'page-1', type: 'shape', x: 0, y: 0, 
-      w: orientation === 'portrait' ? 800 : 1131, h: 220,
+      w: 1131, h: 280,
       content: {},
       style: { zIndex: 1, backgroundColor: 'transparent', opacity: 1, borderRadius: 0 }
     })
-    // Add custom style for banner gradient via pseudo-style or direct backgroundImage if supported
-    // Since we're using style object, I'll add a check in renderer.
 
     newElements.push({
-      id: 'profile-img', pageId: 'page-1', type: 'image', x: 50, y: 80, w: 220, h: 220,
+      id: 'profile-img', pageId: 'page-1', type: 'image', x: 80, y: 40, w: 260, h: 260,
       content: { url: profile.avatar_url || '', focus: { x: 50, y: 50 } },
-      style: { zIndex: 10, borderRadius: 110, opacity: 1, backgroundColor: '#f1f5f9' }
+      style: { zIndex: 10, borderRadius: 130, opacity: 1, backgroundColor: '#f1f5f9' }
     })
     newElements.push({
-      id: 'profile-name', pageId: 'page-1', type: 'text', x: 300, y: 100, w: 500, h: 60,
+      id: 'profile-name', pageId: 'page-1', type: 'text', x: 380, y: 80, w: 600, h: 80,
       content: profile.display_name || '이름을 입력하세요',
-      style: { zIndex: 11, fontSize: 56, fontWeight: '900', color: '#ffffff', opacity: 1 }
+      style: { zIndex: 11, fontSize: 72, fontWeight: '900', color: '#ffffff', opacity: 1 }
     })
     newElements.push({
-      id: 'profile-bio', pageId: 'page-1', type: 'text', x: 300, y: 170, w: 450, h: 100,
+      id: 'profile-bio', pageId: 'page-1', type: 'text', x: 380, y: 170, w: 650, h: 100,
       content: profile.bio || '자신을 소개하는 멋진 자기소개를 입력해보세요.',
-      style: { zIndex: 12, fontSize: 20, fontWeight: '500', color: '#e0f2fe', opacity: 1 }
+      style: { zIndex: 12, fontSize: 24, fontWeight: '500', color: '#e0f2fe', opacity: 1 }
     })
 
-    // Skills & Timeline (Optimized placement for Portrait/Landscape)
-    if (orientation === 'portrait') {
-      if ((profile.skills?.length || 0) > 0) {
-        newElements.push({ id: 'auto-skills', pageId: 'page-1', type: 'skill_bar', x: 50, y: 350, w: 700, h: 300, content: {}, style: { zIndex: 15, opacity: 1 } })
-      }
-      if ((profile.work_history?.length || 0) > 0) {
-        newElements.push({ id: 'auto-timeline', pageId: 'page-1', type: 'timeline', x: 50, y: 700, w: 700, h: 300, content: {}, style: { zIndex: 16, opacity: 1 } })
-      }
-    } else {
-      // Landscape: Side by side
-      if ((profile.skills?.length || 0) > 0) {
-        newElements.push({ id: 'auto-skills', pageId: 'page-1', type: 'skill_bar', x: 50, y: 350, w: 500, h: 350, content: {}, style: { zIndex: 15, opacity: 1 } })
-      }
-      if ((profile.work_history?.length || 0) > 0) {
-        newElements.push({ id: 'auto-timeline', pageId: 'page-1', type: 'timeline', x: 580, y: 350, w: 500, h: 350, content: {}, style: { zIndex: 16, opacity: 1 } })
-      }
+    // Skills & Timeline (Optimized placement for Landscape)
+    if ((profile.skills?.length || 0) > 0) {
+      newElements.push({ id: 'auto-skills', pageId: 'page-1', type: 'skill_bar', x: 50, y: 350, w: 500, h: 350, content: {}, style: { zIndex: 15, opacity: 1 } })
+    }
+    if ((profile.work_history?.length || 0) > 0) {
+      newElements.push({ id: 'auto-timeline', pageId: 'page-1', type: 'timeline', x: 580, y: 350, w: 500, h: 350, content: {}, style: { zIndex: 16, opacity: 1 } })
     }
 
     // Page 2: Core Values
@@ -269,17 +257,17 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
       const pageId = `page-${newPages.length + 1}`
       newPages.push({ id: pageId })
       
-      newElements.push({
-        id: `project-${project.id}`, 
-        pageId,
-        type: 'project', 
-        x: 50, 
-        y: 50, 
-        w: 700, 
-        h: isFullPage ? (orientation === 'portrait' ? 1000 : 700) : 500,
-        content: project,
-        style: { zIndex: 50 + idx, opacity: 1 }
-      })
+        newElements.push({
+          id: `project-${project.id}`, 
+          pageId,
+          type: 'project', 
+          x: 50, 
+          y: 50, 
+          w: 700, 
+          h: isFullPage ? 700 : 500,
+          content: project,
+          style: { zIndex: 50 + idx, opacity: 1 }
+        })
     })
 
     setPages(newPages)
@@ -374,9 +362,8 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
             <h1 className="text-[10px] font-black uppercase text-slate-400">Portfolio Studio <span className="text-emerald-500">V1.0</span></h1>
           </div>
         </div>
-        <div className="flex bg-slate-800/50 p-1 rounded-xl border border-white/5">
-           <button onClick={() => setOrientation('portrait')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black ${orientation === 'portrait' ? 'bg-emerald-500 text-white' : ''}`}>PORTRAIT</button>
-           <button onClick={() => setOrientation('landscape')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black ${orientation === 'landscape' ? 'bg-emerald-500 text-white' : ''}`}>LANDSCAPE</button>
+        <div className="flex bg-slate-800/10 px-4 py-1.5 rounded-xl border border-white/5">
+           <h1 className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Fixed Landscape A4 Editing Mode</h1>
         </div>
       </div>
 
@@ -435,8 +422,8 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
             ref={canvasRef} 
             className="bg-white shadow-2xl relative shrink-0 overflow-hidden" 
             style={{ 
-              width: orientation === 'portrait' ? '800px' : '1131px', 
-              height: orientation === 'portrait' ? '1131px' : '800px', 
+              width: '1131px', 
+              height: '800px', 
               transform: `scale(${zoom})`,
               transition: isDragging ? 'none' : 'transform 0.2s'
             }}>
@@ -447,9 +434,13 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                 {el.type === 'image' && (
                   <div 
                     className="w-full h-full relative group cursor-pointer" 
-                    style={{ borderRadius: el.style.borderRadius, overflow: 'hidden' }}
+                    style={{ 
+                        borderRadius: el.style.borderRadius, 
+                        overflow: 'hidden',
+                        border: el.id === 'profile-img' ? '10px solid white' : 'none',
+                        boxShadow: el.id === 'profile-img' ? '0 20px 50px rgba(0,0,0,0.15)' : 'none'
+                    }}
                     onClick={() => {
-                        // For profile image, we can pick from ALL project images or add a specific upload
                         const allProjectImages = Array.from(new Set(userProjects.flatMap(p => p.images || [])))
                         setIsImagePickerOpen({ elementId: el.id, projectPhotos: allProjectImages })
                     }}
@@ -470,7 +461,7 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                     style={{ 
                       borderRadius: el.style.borderRadius,
                       backgroundImage: el.id === 'header-banner' 
-                        ? 'linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%)' 
+                        ? 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #60a5fa 100%)' 
                         : undefined 
                     }}
                   ></div>
