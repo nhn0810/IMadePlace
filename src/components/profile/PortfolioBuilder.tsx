@@ -201,19 +201,28 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
 
     // Page 1: Bio
     newElements.push({
-      id: 'profile-img', pageId: 'page-1', type: 'image', x: 50, y: 50, w: 200, h: 200,
+      id: 'header-banner', pageId: 'page-1', type: 'shape', x: 0, y: 0, 
+      w: orientation === 'portrait' ? 800 : 1131, h: 220,
+      content: {},
+      style: { zIndex: 1, backgroundColor: 'transparent', opacity: 1, borderRadius: 0 }
+    })
+    // Add custom style for banner gradient via pseudo-style or direct backgroundImage if supported
+    // Since we're using style object, I'll add a check in renderer.
+
+    newElements.push({
+      id: 'profile-img', pageId: 'page-1', type: 'image', x: 50, y: 80, w: 220, h: 220,
       content: { url: profile.avatar_url || '', focus: { x: 50, y: 50 } },
-      style: { zIndex: 10, borderRadius: 20, opacity: 1, backgroundColor: '#f1f5f9' }
+      style: { zIndex: 10, borderRadius: 110, opacity: 1, backgroundColor: '#f1f5f9' }
     })
     newElements.push({
-      id: 'profile-name', pageId: 'page-1', type: 'text', x: 280, y: 50, w: 500, h: 60,
+      id: 'profile-name', pageId: 'page-1', type: 'text', x: 300, y: 100, w: 500, h: 60,
       content: profile.display_name || '이름을 입력하세요',
-      style: { zIndex: 11, fontSize: 48, fontWeight: '900', color: '#1e293b', opacity: 1 }
+      style: { zIndex: 11, fontSize: 56, fontWeight: '900', color: '#ffffff', opacity: 1 }
     })
     newElements.push({
-      id: 'profile-bio', pageId: 'page-1', type: 'text', x: 280, y: 120, w: 450, h: 100,
+      id: 'profile-bio', pageId: 'page-1', type: 'text', x: 300, y: 170, w: 450, h: 100,
       content: profile.bio || '자신을 소개하는 멋진 자기소개를 입력해보세요.',
-      style: { zIndex: 12, fontSize: 20, fontWeight: '500', color: '#64748b', opacity: 1 }
+      style: { zIndex: 12, fontSize: 20, fontWeight: '500', color: '#e0f2fe', opacity: 1 }
     })
 
     // Skills & Timeline (Optimized placement for Portrait/Landscape)
@@ -455,7 +464,17 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                     </div>
                   </div>
                 )}
-                {el.type === 'shape' && <div className="w-full h-full" style={{ borderRadius: el.style.borderRadius }}></div>}
+                {el.type === 'shape' && (
+                  <div 
+                    className="w-full h-full" 
+                    style={{ 
+                      borderRadius: el.style.borderRadius,
+                      backgroundImage: el.id === 'header-banner' 
+                        ? 'linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%)' 
+                        : undefined 
+                    }}
+                  ></div>
+                )}
                 {el.type === 'project' && (
                   <div className="w-full h-full flex flex-col bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-lg group">
                     <div 
