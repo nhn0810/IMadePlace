@@ -11,6 +11,8 @@ export const metadata: Metadata = {
   description: "A permission-centric personal posting platform",
 };
 
+import { LayoutWrapper } from "@/components/layout/LayoutWrapper";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -18,12 +20,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
-      <body className="antialiased min-h-screen bg-slate-50 text-slate-900 flex flex-col md:flex-row">
+      <body className="antialiased min-h-screen bg-slate-50 text-slate-900">
         <NextTopLoader color="#10b981" showSpinner={false} height={3} shadow="0 0 10px #10b981,0 0 5px #10b981" />
-        <Sidebar />
-        <main className="flex-1 min-w-0 max-w-4xl mx-auto w-full bg-white min-h-screen shadow-sm border-x border-slate-200">
+        <LayoutWrapper sidebar={<Sidebar />}>
           {children}
-        </main>
+        </LayoutWrapper>
       </body>
     </html>
   );

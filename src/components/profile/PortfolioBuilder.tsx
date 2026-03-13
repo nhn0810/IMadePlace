@@ -215,14 +215,19 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-[#0a0c10] select-none text-slate-300">
-      {/* Top Bar - Simplified */}
-      <div className="h-14 bg-slate-900/60 backdrop-blur-xl border-b border-white/5 flex items-center justify-between px-6 z-30">
-        <div className="flex items-center gap-4">
-          <Link href="/profile" className="p-2 hover:bg-white/5 rounded-xl transition-colors">
-            <ArrowLeft className="w-5 h-5 text-slate-400" />
+      {/* Top Bar - Clean & Integrated */}
+      <div className="h-14 bg-slate-900/80 backdrop-blur-xl border-b border-white/5 flex items-center justify-between px-6 z-30">
+        <div className="flex items-center gap-6">
+          <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <h1 className="text-lg font-black tracking-tighter text-white">Make Place.</h1>
           </Link>
-          <div className="w-[1px] h-6 bg-white/10"></div>
-          <h1 className="text-xs font-black uppercase tracking-[0.3em] text-white/90">Portfolio Builder <span className="text-emerald-500 ml-2">V1.0</span></h1>
+          <div className="w-[1px] h-4 bg-white/10"></div>
+          <div className="flex items-center gap-3">
+            <Link href="/profile" className="p-2 hover:bg-white/5 rounded-xl transition-colors group">
+              <ArrowLeft className="w-4 h-4 text-slate-500 group-hover:text-white" />
+            </Link>
+            <h1 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Portfolio Studio <span className="text-emerald-500 ml-2">V1.0</span></h1>
+          </div>
         </div>
 
         <div className="flex bg-slate-800/50 p-1 rounded-xl border border-white/5">
