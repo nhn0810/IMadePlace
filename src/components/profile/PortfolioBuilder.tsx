@@ -235,12 +235,24 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
     // Page 3+: Projects
     const selectedProjectsData = userProjects.filter(p => wizardConfig.selectedProjectIds.includes(p.id))
     selectedProjectsData.forEach((project, idx) => {
+      const isFullPage = wizardConfig.fullPageProjects[project.id]
       addPageBreak()
+      
       newElements.push({
-        id: `project-${project.id}`, type: 'project', x: 50, y: currentY, w: 700, h: 500,
+        id: `project-${project.id}`, 
+        type: 'project', 
+        x: 50, 
+        y: currentY, 
+        w: 700, 
+        h: isFullPage ? (orientation === 'portrait' ? 1000 : 700) : 500,
         content: project,
         style: { zIndex: 50 + idx, opacity: 1 }
       })
+      
+      if (isFullPage) {
+        // Force next project to a new page
+        currentY += 100 
+      }
     })
 
     setElements(newElements)
@@ -274,19 +286,41 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
               <div className="space-y-4">
                 <p className="text-sm font-bold text-slate-400">Select projects to include:</p>
                 <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                  {userProjects.map(p => (
-                    <div key={p.id} className="flex items-center gap-3 p-4 bg-white/5 rounded-xl border border-white/5">
-                      <input 
-                        type="checkbox" 
-                        checked={wizardConfig.selectedProjectIds.includes(p.id)}
-                        onChange={(e) => {
-                          const ids = e.target.checked ? [...wizardConfig.selectedProjectIds, p.id] : wizardConfig.selectedProjectIds.filter(id => id !== p.id)
-                          setWizardConfig({...wizardConfig, selectedProjectIds: ids})
-                        }}
-                      />
-                      <span className="text-sm text-white font-bold">{p.title}</span>
-                    </div>
-                  ))}
+                  {userProjects.map(p => {
+                    const isSelected = wizardConfig.selectedProjectIds.includes(p.id)
+                    return (
+                      <div key={p.id} className={`flex items-center justify-between p-4 rounded-xl border transition-all ${isSelected ? 'bg-emerald-500/10 border-emerald-500/50' : 'bg-white/5 border-white/5'}`}>
+                        <div className="flex items-center gap-3">
+                          <input 
+                            type="checkbox" 
+                            checked={isSelected}
+                            onChange={(e) => {
+                              const ids = e.target.checked ? [...wizardConfig.selectedProjectIds, p.id] : wizardConfig.selectedProjectIds.filter(id => id !== p.id)
+                              setWizardConfig({...wizardConfig, selectedProjectIds: ids})
+                            }}
+                            className="w-4 h-4 rounded accent-emerald-500"
+                          />
+                          <span className={`text-sm font-bold ${isSelected ? 'text-white' : 'text-slate-400'}`}>{p.title}</span>
+                        </div>
+                        
+                        {isSelected && (
+                          <div className="flex items-center gap-2 bg-black/20 px-3 py-1.5 rounded-lg border border-white/5">
+                            <input 
+                              type="checkbox" 
+                              id={`full-${p.id}`}
+                              checked={wizardConfig.fullPageProjects[p.id] || false}
+                              onChange={(e) => setWizardConfig({
+                                ...wizardConfig, 
+                                fullPageProjects: { ...wizardConfig.fullPageProjects, [p.id]: e.target.checked }
+                              })}
+                              className="w-3.5 h-3.5 accent-violet-500"
+                            />
+                            <label htmlFor={`full-${p.id}`} className="text-[10px] font-black text-slate-300 uppercase tracking-wider cursor-pointer">Full Page</label>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}
