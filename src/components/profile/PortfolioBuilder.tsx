@@ -336,15 +336,15 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                     <input 
                       type="range" min="0" max="1" step="0.1" 
                       value={selectedElement.style.opacity} 
-                      onChange={(e) => updateStyle(selectedId, { opacity: parseFloat(e.target.value) })}
+                      onChange={(e) => selectedId && updateStyle(selectedId, { opacity: parseFloat(e.target.value) })}
                       className="w-full accent-emerald-500"
                     />
                   </div>
                   <span className="text-xs text-slate-400">{Math.round((selectedElement.style.opacity || 1) * 100)}%</span>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => updateStyle(selectedId, { zIndex: selectedElement.style.zIndex + 1 })} className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-[10px] font-bold text-slate-300">앞으로</button>
-                  <button onClick={() => updateStyle(selectedId, { zIndex: Math.max(0, selectedElement.style.zIndex - 1) })} className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-[10px] font-bold text-slate-300">뒤로</button>
+                  <button onClick={() => selectedId && updateStyle(selectedId, { zIndex: (selectedElement.style.zIndex || 0) + 1 })} className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-[10px] font-bold text-slate-300">앞으로</button>
+                  <button onClick={() => selectedId && updateStyle(selectedId, { zIndex: Math.max(0, (selectedElement.style.zIndex || 0) - 1) })} className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-[10px] font-bold text-slate-300">뒤로</button>
                 </div>
               </div>
 

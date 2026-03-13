@@ -7,6 +7,9 @@ import Link from 'next/link'
 import { MessageSquare, LayoutList, ArrowLeft, Lock, Loader2, Award, Briefcase, AlignLeft, Layout, FileText } from 'lucide-react'
 import { PostList } from '@/components/board/PostList'
 
+type Skill = { name: string; level: number }
+type History = { year: string; duration?: string; content: string }
+
 export default function PublicProfilePage() {
   const router = useRouter()
   const params = useParams()
@@ -184,12 +187,12 @@ export default function PublicProfilePage() {
               </div>
             )}
 
-            {profile.intro_sections && Object.entries(profile.intro_sections).some(([_, val]) => !!val) && (
+            {profile.intro_sections && Object.entries(profile.intro_sections as Record<string, string>).some(([_, val]) => !!val) && (
               <div className="space-y-4">
-                {Object.entries(profile.intro_sections).map(([q, a], i) => a && (
+                {Object.entries(profile.intro_sections as Record<string, string>).map(([q, a], i) => a && (
                   <div key={i} className="p-6 bg-emerald-50/50 rounded-2xl border border-emerald-100/50">
                     <h4 className="text-xs font-black text-emerald-700 mb-2">Q. {q}</h4>
-                    <p className="text-sm text-slate-700 leading-relaxed">{a as string}</p>
+                    <p className="text-sm text-slate-700 leading-relaxed">{a}</p>
                   </div>
                 ))}
               </div>
