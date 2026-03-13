@@ -15,6 +15,7 @@ type ElementType = 'text' | 'image' | 'shape' | 'project' | 'skill_bar' | 'timel
 
 interface CanvasElement {
   id: string
+  pageId: string
   type: ElementType
   x: number
   y: number
@@ -50,6 +51,23 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
     fullPageProjects: {} as Record<string, boolean>
   })
 
+  // --- Multi-page State ---
+  const [pages, setPages] = useState<{ id: string }[]>([{ id: 'page-1' }])
+  const [activePageId, setActivePageId] = useState<string>('page-1')
+
+  const addPage = () => {
+    const newPageId = `page-${pages.length + 1}`
+    setPages([...pages, { id: newPageId }])
+    setActivePageId(newPageId)
+  }
+
+  const deletePage = (id: string) => {
+    if (pages.length === 1) return
+    setPages(pages.filter(p => p.id !== id))
+    setElements(elements.filter(el => el.pageId !== id))
+    if (activePageId === id) setActivePageId(pages[0].id)
+  }
+
   // --- Photo Focus / Picker State ---
   const [focusingPhoto, setFocusingPhoto] = useState<{ elementId: string; imageUrl: string; focus: { x: number; y: number } } | null>(null)
   const [isImagePickerOpen, setIsImagePickerOpen] = useState<{ elementId: string; projectPhotos: string[] } | null>(null)
@@ -61,6 +79,7 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
     const id = Math.random().toString(36).substr(2, 9)
     let newElement: CanvasElement = {
       id,
+      pageId: activePageId,
       type,
       x: 100,
       y: 100,
@@ -146,6 +165,16 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
         setElements(prev => prev.filter(el => el.id !== selectedId))
         setSelectedId(null)
       }
+      
+      // Page Navigation
+      if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA' && document.activeElement?.getAttribute('contenteditable') !== 'true') {
+        const currentIndex = pages.findIndex(p => p.id === activePageId)
+        if (e.key === 'ArrowUp' && currentIndex > 0) {
+          setActivePageId(pages[currentIndex - 1].id)
+        } else if (e.key === 'ArrowDown' && currentIndex < pages.length - 1) {
+          setActivePageId(pages[currentIndex + 1].id)
+        }
+      }
     }
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('mouseup', handleMouseUp)
@@ -155,86 +184,77 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
       window.removeEventListener('mouseup', handleMouseUp)
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isDragging, selectedId, dragOffset, zoom])
+  }, [isDragging, selectedId, dragOffset, zoom, activePageId, pages])
 
   const handleInitialize = () => {
     const { useTemplate, selectedProjectIds, fullPageProjects } = wizardConfig
     const newElements: CanvasElement[] = []
-    let currentY = 50
-    let currentPage = 0
-    const pageGap = orientation === 'portrait' ? 1131 : 800
-
-    const addPageBreak = () => {
-      currentPage++
-      currentY = currentPage * pageGap + 50
-    }
-
+    const newPages: { id: string }[] = [{ id: 'page-1' }]
+    
     if (!useTemplate) {
-      setElements([]) // Start clean
+      setPages(newPages)
+      setActivePageId('page-1')
+      setElements([])
       setShowWizard(false)
       return
     }
 
-    // Page 1: Bio (Always starts at 50)
+    // Page 1: Bio
     newElements.push({
-      id: 'profile-img', type: 'image', x: 50, y: 50, w: 200, h: 200,
+      id: 'profile-img', pageId: 'page-1', type: 'image', x: 50, y: 50, w: 200, h: 200,
       content: { url: profile.avatar_url || '', focus: { x: 50, y: 50 } },
       style: { zIndex: 10, borderRadius: 20, opacity: 1, backgroundColor: '#f1f5f9' }
     })
     newElements.push({
-      id: 'profile-name', type: 'text', x: 280, y: 50, w: 500, h: 60,
+      id: 'profile-name', pageId: 'page-1', type: 'text', x: 280, y: 50, w: 500, h: 60,
       content: profile.display_name || '이름을 입력하세요',
       style: { zIndex: 11, fontSize: 48, fontWeight: '900', color: '#1e293b', opacity: 1 }
     })
     newElements.push({
-      id: 'profile-bio', type: 'text', x: 280, y: 120, w: 450, h: 100,
+      id: 'profile-bio', pageId: 'page-1', type: 'text', x: 280, y: 120, w: 450, h: 100,
       content: profile.bio || '자신을 소개하는 멋진 자기소개를 입력해보세요.',
       style: { zIndex: 12, fontSize: 20, fontWeight: '500', color: '#64748b', opacity: 1 }
     })
 
-    // Skills & Timeline (Auto-add below bio if they fit, or next page)
     if ((profile.skills?.length || 0) > 0) {
-      newElements.push({
-        id: 'auto-skills', type: 'skill_bar', x: 50, y: 300, w: 340, h: 300,
-        content: {}, style: { zIndex: 15, opacity: 1 }
-      })
+      newElements.push({ id: 'auto-skills', pageId: 'page-1', type: 'skill_bar', x: 50, y: 300, w: 340, h: 300, content: {}, style: { zIndex: 15, opacity: 1 } })
     }
     if ((profile.work_history?.length || 0) > 0) {
-      newElements.push({
-        id: 'auto-timeline', type: 'timeline', x: 410, y: 300, w: 340, h: 300,
-        content: {}, style: { zIndex: 16, opacity: 1 }
-      })
+      newElements.push({ id: 'auto-timeline', pageId: 'page-1', type: 'timeline', x: 410, y: 300, w: 340, h: 300, content: {}, style: { zIndex: 16, opacity: 1 } })
     }
 
     // Page 2: Core Values
     const cvs = profile.core_values || []
     if (cvs.length > 0) {
-      addPageBreak()
+      const pageId = 'page-2'
+      newPages.push({ id: pageId })
       newElements.push({
-        id: 'cv-title', type: 'text', x: 50, y: currentY, w: 300, h: 40,
+        id: 'cv-title', pageId, type: 'text', x: 50, y: 50, w: 300, h: 40,
         content: 'CORE VALUES',
         style: { zIndex: 20, fontSize: 24, fontWeight: '900', color: '#10b981', opacity: 1 }
       })
       cvs.forEach((cv: any, i: number) => {
         newElements.push({
-          id: `cv-${i}`, type: 'text', x: 50 + ((i % 3) * 240), y: currentY + 60 + (Math.floor(i / 3) * 200), w: 220, h: 180,
+          id: `cv-${i}`, pageId, type: 'text', x: 50 + ((i % 3) * 240), y: 110 + (Math.floor(i / 3) * 200), w: 220, h: 180,
           content: `**${cv.title}**\n${cv.content}`,
           style: { zIndex: 21 + i, fontSize: 13, backgroundColor: '#f9fafb', borderRadius: 20, opacity: 1, color: '#374151' }
         })
       })
     }
 
-    // Page 3+: Projects (Each on its own page to avoid overlap issues)
+    // Page 3+: Projects
     const selectedProjectsData = userProjects.filter(p => wizardConfig.selectedProjectIds.includes(p.id))
     selectedProjectsData.forEach((project, idx) => {
       const isFullPage = wizardConfig.fullPageProjects[project.id]
-      addPageBreak()
+      const pageId = `page-${newPages.length + 1}`
+      newPages.push({ id: pageId })
       
       newElements.push({
         id: `project-${project.id}`, 
+        pageId,
         type: 'project', 
         x: 50, 
-        y: currentY, 
+        y: 50, 
         w: 700, 
         h: isFullPage ? (orientation === 'portrait' ? 1000 : 700) : 500,
         content: project,
@@ -242,7 +262,9 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
       })
     })
 
+    setPages(newPages)
     setElements(newElements)
+    setActivePageId('page-1')
     setShowWizard(false)
   }
 
@@ -339,8 +361,39 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
       </div>
 
       <div className="flex flex-1 overflow-hidden relative">
+        {/* Left Page Navigator */}
+        <div className="w-48 bg-slate-900/50 backdrop-blur-xl border-r border-white/5 flex flex-col z-20 overflow-y-auto custom-scrollbar">
+          <div className="p-4 space-y-4">
+             {pages.map((p, i) => (
+               <div key={p.id} className="relative group">
+                 <button 
+                   onClick={() => setActivePageId(p.id)}
+                   className={`w-full aspect-[1/1.41] rounded-xl border-2 transition-all flex items-center justify-center overflow-hidden bg-white/5 ${activePageId === p.id ? 'border-emerald-500 shadow-lg shadow-emerald-500/20' : 'border-white/5 hover:border-white/20'}`}
+                 >
+                   <span className="text-[10px] font-black text-slate-500">PAGE {i + 1}</span>
+                 </button>
+                 {pages.length > 1 && (
+                   <button 
+                     onClick={(e) => { e.stopPropagation(); deletePage(p.id); }}
+                     className="absolute -top-1 -right-1 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity active:scale-90"
+                   >
+                     <Trash className="w-3 h-3" />
+                   </button>
+                 )}
+               </div>
+             ))}
+             <button 
+               onClick={addPage}
+               className="w-full aspect-[1/1.41] rounded-xl border-2 border-dashed border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5 flex flex-col items-center justify-center gap-2 transition-all group"
+             >
+               <Plus className="w-5 h-5 text-slate-500 group-hover:text-emerald-500" />
+               <span className="text-[8px] font-black text-slate-500 group-hover:text-emerald-500 uppercase">Add Page</span>
+             </button>
+          </div>
+        </div>
+
         {/* Floating Tools */}
-        <div className="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-20">
+        <div className="absolute left-[200px] top-1/2 -translate-y-1/2 flex flex-col gap-3 z-20">
           <div className="bg-slate-900/80 backdrop-blur-2xl border border-white/10 p-2 rounded-2xl shadow-2xl flex flex-col gap-2">
             <button onClick={() => addElement('text')} className="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-emerald-500 rounded-xl transition-all"><TypeIcon className="w-5 h-5" /></button>
             <button onClick={() => addElement('shape')} className="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-emerald-500 rounded-xl transition-all"><Square className="w-5 h-5" /></button>
@@ -363,17 +416,11 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
             className="bg-white shadow-2xl relative shrink-0 overflow-hidden" 
             style={{ 
               width: orientation === 'portrait' ? '800px' : '1131px', 
-              height: `${Math.max(orientation === 'portrait' ? 1131 : 800, ...elements.map(el => el.y + el.h + 50))}px`, 
+              height: orientation === 'portrait' ? '1131px' : '800px', 
               transform: `scale(${zoom})`,
-              transformOrigin: 'top center',
               transition: isDragging ? 'none' : 'transform 0.2s'
             }}>
-            {/* Page Guide Lines */}
-            {Array.from({ length: Math.ceil(Math.max(0, ...elements.map(el => el.y + el.h)) / (orientation === 'portrait' ? 1131 : 800)) }).map((_, i) => (
-              <div key={i} className="absolute w-full border-b border-dashed border-slate-200 pointer-events-none" style={{ top: (i + 1) * (orientation === 'portrait' ? 1131 : 800) }}></div>
-            ))}
-
-            {elements.map(el => (
+            {elements.filter(el => el.pageId === activePageId).map(el => (
               <div key={el.id} onMouseDown={(e) => onMouseDown(el.id, e)} className={`absolute cursor-move ${selectedId === el.id ? 'ring-2 ring-emerald-500' : ''}`}
                 style={{ left: el.x, top: el.y, width: el.w, height: el.h, zIndex: el.style.zIndex, opacity: el.style.opacity, backgroundColor: el.style.backgroundColor }}>
                 {el.type === 'text' && <div contentEditable onBlur={(e) => updateElement(el.id, { content: e.currentTarget.textContent })} className="w-full h-full p-2 outline-none" style={{ fontSize: el.style.fontSize, fontFamily: el.style.fontFamily, color: el.style.color, textAlign: el.style.textAlign }}>{el.content}</div>}
