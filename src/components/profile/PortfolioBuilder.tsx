@@ -216,11 +216,22 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
       style: { zIndex: 12, fontSize: 20, fontWeight: '500', color: '#64748b', opacity: 1 }
     })
 
-    if ((profile.skills?.length || 0) > 0) {
-      newElements.push({ id: 'auto-skills', pageId: 'page-1', type: 'skill_bar', x: 50, y: 300, w: 340, h: 300, content: {}, style: { zIndex: 15, opacity: 1 } })
-    }
-    if ((profile.work_history?.length || 0) > 0) {
-      newElements.push({ id: 'auto-timeline', pageId: 'page-1', type: 'timeline', x: 410, y: 300, w: 340, h: 300, content: {}, style: { zIndex: 16, opacity: 1 } })
+    // Skills & Timeline (Optimized placement for Portrait/Landscape)
+    if (orientation === 'portrait') {
+      if ((profile.skills?.length || 0) > 0) {
+        newElements.push({ id: 'auto-skills', pageId: 'page-1', type: 'skill_bar', x: 50, y: 350, w: 700, h: 300, content: {}, style: { zIndex: 15, opacity: 1 } })
+      }
+      if ((profile.work_history?.length || 0) > 0) {
+        newElements.push({ id: 'auto-timeline', pageId: 'page-1', type: 'timeline', x: 50, y: 700, w: 700, h: 300, content: {}, style: { zIndex: 16, opacity: 1 } })
+      }
+    } else {
+      // Landscape: Side by side
+      if ((profile.skills?.length || 0) > 0) {
+        newElements.push({ id: 'auto-skills', pageId: 'page-1', type: 'skill_bar', x: 50, y: 350, w: 500, h: 350, content: {}, style: { zIndex: 15, opacity: 1 } })
+      }
+      if ((profile.work_history?.length || 0) > 0) {
+        newElements.push({ id: 'auto-timeline', pageId: 'page-1', type: 'timeline', x: 580, y: 350, w: 500, h: 350, content: {}, style: { zIndex: 16, opacity: 1 } })
+      }
     }
 
     // Page 2: Core Values
@@ -425,12 +436,23 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                 style={{ left: el.x, top: el.y, width: el.w, height: el.h, zIndex: el.style.zIndex, opacity: el.style.opacity, backgroundColor: el.style.backgroundColor }}>
                 {el.type === 'text' && <div contentEditable onBlur={(e) => updateElement(el.id, { content: e.currentTarget.textContent })} className="w-full h-full p-2 outline-none" style={{ fontSize: el.style.fontSize, fontFamily: el.style.fontFamily, color: el.style.color, textAlign: el.style.textAlign }}>{el.content}</div>}
                 {el.type === 'image' && (
-                  <div className="w-full h-full relative group" style={{ borderRadius: el.style.borderRadius, overflow: 'hidden' }}>
+                  <div 
+                    className="w-full h-full relative group cursor-pointer" 
+                    style={{ borderRadius: el.style.borderRadius, overflow: 'hidden' }}
+                    onClick={() => {
+                        // For profile image, we can pick from ALL project images or add a specific upload
+                        const allProjectImages = Array.from(new Set(userProjects.flatMap(p => p.images || [])))
+                        setIsImagePickerOpen({ elementId: el.id, projectPhotos: allProjectImages })
+                    }}
+                  >
                     <img 
                       src={el.content.url} 
                       className="w-full h-full object-cover" 
                       style={{ objectPosition: `${el.content.focus?.x || 50}% ${el.content.focus?.y || 50}%` }}
                     />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                       <span className="text-[10px] font-black text-white bg-white/20 backdrop-blur px-3 py-1.5 rounded-full border border-white/20 uppercase tracking-widest">Change Photo</span>
+                    </div>
                   </div>
                 )}
                 {el.type === 'shape' && <div className="w-full h-full" style={{ borderRadius: el.style.borderRadius }}></div>}
@@ -550,7 +572,7 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                   key={i} 
                   onClick={() => {
                     updateElement(isImagePickerOpen.elementId, { 
-                      content: { ...selectedElement?.content, thumbnail_url: url } 
+                      content: { ...elements.find(el => el.id === isImagePickerOpen.elementId)?.content, url: url, thumbnail_url: url } 
                     })
                     setIsImagePickerOpen(null)
                     setFocusingPhoto({ elementId: isImagePickerOpen.elementId, imageUrl: url, focus: { x: 50, y: 50 } })
