@@ -11,7 +11,7 @@ import {
 import Link from 'next/link'
 import { toPng, toJpeg } from 'html-to-image'
 
-type ElementType = 'text' | 'image' | 'shape' | 'project' | 'skill_bar' | 'timeline'
+type ElementType = 'text' | 'image' | 'shape' | 'project' | 'skill_bar' | 'timeline' | 'profile_page' | 'project_detail_page'
 
 interface CanvasElement {
   id: string
@@ -22,6 +22,9 @@ interface CanvasElement {
   w: number
   h: number
   content: any
+  layoutConfig?: {
+    mediaWidth?: number; // percentage
+  }
   style: {
     fontSize?: number
     fontFamily?: string
@@ -147,6 +150,40 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
     }
   }
 
+  const parseProjectContent = (content: string) => {
+    const sections = {
+      background: '데이터를 입력해주세요.',
+      problem: '데이터를 입력해주세요.',
+      solution: '데이터를 입력해주세요.',
+      period: '기간 정보가 없습니다.',
+      tech: [] as string[]
+    }
+    
+    if (!content) return sections
+
+    // Basic heuristic: split by keywords or headers if available
+    const bgMatch = content.match(/(?:Background|배경|동기)[\s:]*([\s\S]*?)(?=(?:Problem|문제|난관|Solution|해결|성과|$))/i)
+    const probMatch = content.match(/(?:Problem|문제|난관|이슈)[\s:]*([\s\S]*?)(?=(?:Solution|해결|성과|Background|배경|$))/i)
+    const solMatch = content.match(/(?:Solution|해결|성과|결과)[\s:]*([\s\S]*?)(?=(?:Background|배경|Problem|문제|$))/i)
+    const periodMatch = content.match(/(?:Period|기간|날짜)[\s:]*([^\n]*)/i)
+    const techMatch = content.match(/(?:Tech|Stack|기술|스택)[\s:]*([^\n]*)/i)
+
+    if (bgMatch) sections.background = bgMatch[1].trim()
+    if (probMatch) sections.problem = probMatch[1].trim()
+    if (solMatch) sections.solution = solMatch[1].trim()
+    if (periodMatch) sections.period = periodMatch[1].trim()
+    if (techMatch) {
+      sections.tech = techMatch[1].split(/[,/]/).map(s => s.trim().toUpperCase()).filter(Boolean)
+    }
+
+    // If no matches, just use the whole thing for background
+    if (!bgMatch && !probMatch && !solMatch) {
+      sections.background = content.substring(0, 300) + (content.length > 300 ? '...' : '')
+    }
+
+    return sections
+  }
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isDragging && selectedId) {
@@ -187,7 +224,7 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
   }, [isDragging, selectedId, dragOffset, zoom, activePageId, pages])
 
   const handleInitialize = () => {
-    const { useTemplate, selectedProjectIds, fullPageProjects } = wizardConfig
+    const { useTemplate, selectedProjectIds } = wizardConfig
     const newElements: CanvasElement[] = []
     const newPages: { id: string }[] = [{ id: 'page-1' }]
     
@@ -199,75 +236,31 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
       return
     }
 
-    // Page 1: Bio
+    // Page 1: Profile & Identity
     newElements.push({
-      id: 'header-banner', pageId: 'page-1', type: 'shape', x: 0, y: 0, 
-      w: 1131, h: 280,
-      content: {},
-      style: { zIndex: 1, backgroundColor: 'transparent', opacity: 1, borderRadius: 0 }
+      id: 'profile-page-root',
+      pageId: 'page-1',
+      type: 'profile_page',
+      x: 0, y: 0, w: 1131, h: 800,
+      content: { profile },
+      style: { zIndex: 1, opacity: 1 }
     })
 
-    newElements.push({
-      id: 'profile-img', pageId: 'page-1', type: 'image', x: 80, y: 40, w: 260, h: 260,
-      content: { url: profile.avatar_url || '', focus: { x: 50, y: 50 } },
-      style: { zIndex: 10, borderRadius: 130, opacity: 1, backgroundColor: '#f1f5f9' }
-    })
-    newElements.push({
-      id: 'profile-name', pageId: 'page-1', type: 'text', x: 380, y: 80, w: 600, h: 80,
-      content: profile.display_name || '이름을 입력하세요',
-      style: { zIndex: 11, fontSize: 72, fontWeight: '900', color: '#ffffff', opacity: 1 }
-    })
-    newElements.push({
-      id: 'profile-bio', pageId: 'page-1', type: 'text', x: 380, y: 170, w: 650, h: 100,
-      content: profile.bio || '자신을 소개하는 멋진 자기소개를 입력해보세요.',
-      style: { zIndex: 12, fontSize: 24, fontWeight: '500', color: '#e0f2fe', opacity: 1 }
-    })
-
-    // Skills & Timeline (Optimized placement for Landscape)
-    if ((profile.skills?.length || 0) > 0) {
-      newElements.push({ id: 'auto-skills', pageId: 'page-1', type: 'skill_bar', x: 50, y: 350, w: 500, h: 350, content: {}, style: { zIndex: 15, opacity: 1 } })
-    }
-    if ((profile.work_history?.length || 0) > 0) {
-      newElements.push({ id: 'auto-timeline', pageId: 'page-1', type: 'timeline', x: 580, y: 350, w: 500, h: 350, content: {}, style: { zIndex: 16, opacity: 1 } })
-    }
-
-    // Page 2: Core Values
-    const cvs = profile.core_values || []
-    if (cvs.length > 0) {
-      const pageId = 'page-2'
-      newPages.push({ id: pageId })
-      newElements.push({
-        id: 'cv-title', pageId, type: 'text', x: 50, y: 50, w: 300, h: 40,
-        content: 'CORE VALUES',
-        style: { zIndex: 20, fontSize: 24, fontWeight: '900', color: '#10b981', opacity: 1 }
-      })
-      cvs.forEach((cv: any, i: number) => {
-        newElements.push({
-          id: `cv-${i}`, pageId, type: 'text', x: 50 + ((i % 3) * 240), y: 110 + (Math.floor(i / 3) * 200), w: 220, h: 180,
-          content: `**${cv.title}**\n${cv.content}`,
-          style: { zIndex: 21 + i, fontSize: 13, backgroundColor: '#f9fafb', borderRadius: 20, opacity: 1, color: '#374151' }
-        })
-      })
-    }
-
-    // Page 3+: Projects
-    const selectedProjectsData = userProjects.filter(p => wizardConfig.selectedProjectIds.includes(p.id))
+    // Page 2+: Project Detailed Case Study
+    const selectedProjectsData = userProjects.filter(p => selectedProjectIds.includes(p.id))
     selectedProjectsData.forEach((project, idx) => {
-      const isFullPage = wizardConfig.fullPageProjects[project.id]
       const pageId = `page-${newPages.length + 1}`
       newPages.push({ id: pageId })
       
-        newElements.push({
-          id: `project-${project.id}`, 
-          pageId,
-          type: 'project', 
-          x: 50, 
-          y: 50, 
-          w: 700, 
-          h: isFullPage ? 700 : 500,
-          content: project,
-          style: { zIndex: 50 + idx, opacity: 1 }
-        })
+      newElements.push({
+        id: `project-detail-${project.id}`, 
+        pageId,
+        type: 'project_detail_page', 
+        x: 0, y: 0, w: 1131, h: 800,
+        content: project,
+        layoutConfig: { mediaWidth: 50 },
+        style: { zIndex: 10 + idx, opacity: 1 }
+      })
     })
 
     setPages(newPages)
@@ -430,6 +423,177 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
             {elements.filter(el => el.pageId === activePageId).map(el => (
               <div key={el.id} onMouseDown={(e) => onMouseDown(el.id, e)} className={`absolute cursor-move ${selectedId === el.id ? 'ring-2 ring-emerald-500' : ''}`}
                 style={{ left: el.x, top: el.y, width: el.w, height: el.h, zIndex: el.style.zIndex, opacity: el.style.opacity, backgroundColor: el.style.backgroundColor }}>
+                {el.type === 'profile_page' && (() => {
+                  const p = el.content.profile || profile
+                  return (
+                    <div className="w-full h-full flex flex-col p-12 bg-white text-slate-900 border border-slate-100" style={{ WebkitPrintColorAdjust: 'exact' } as any}>
+                      <div className="flex-shrink-0 border-b-2 border-slate-900 pb-6 mb-8">
+                         <h1 
+                           contentEditable 
+                           suppressContentEditableWarning
+                           onBlur={(e) => updateElement(el.id, { content: { ...el.content, profile: { ...p, display_name: e.currentTarget.textContent } } })}
+                           className="text-5xl font-black mb-2 uppercase tracking-tight outline-none focus:ring-2 ring-emerald-500/20 px-1 rounded"
+                         >
+                           {p.display_name}
+                         </h1>
+                         <p 
+                           contentEditable 
+                           suppressContentEditableWarning
+                           onBlur={(e) => updateElement(el.id, { content: { ...el.content, profile: { ...p, bio: e.currentTarget.textContent } } })}
+                           className="text-xl text-slate-500 font-medium outline-none focus:ring-2 ring-emerald-500/20 px-1 rounded"
+                         >
+                           {p.bio || '사용자 경험을 설계하는 개발자'}
+                         </p>
+                      </div>
+                      <div className="flex flex-1 gap-12 overflow-hidden">
+                         <div className="w-[35%] flex flex-col gap-8">
+                            <div className="w-48 h-48 rounded-full border-4 border-slate-100 shadow-xl overflow-hidden self-center">
+                               <img src={p.avatar_url || ''} className="w-full h-full object-cover" />
+                            </div>
+                            <div className="space-y-4">
+                               <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b pb-2">Information</h3>
+                               <div className="space-y-2 text-xs font-bold text-slate-700">
+                                  <div>Email: {p.email}</div>
+                                  {p.work_history?.[0] && <div>Edu/Main: {p.work_history[0].content}</div>}
+                               </div>
+                            </div>
+                            <div className="flex-1 overflow-hidden">
+                               <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b pb-2 mb-4">Timeline</h3>
+                               <div className="space-y-4 overflow-y-auto h-full pr-2 custom-scrollbar">
+                                  {(p.work_history || []).map((h: any, i: number) => (
+                                    <div key={i} className="border-l-2 border-emerald-500 pl-4 relative pb-2">
+                                      <div className="absolute -left-[5px] top-1 w-2 h-2 rounded-full bg-emerald-500"></div>
+                                      <div className="text-[10px] font-black text-slate-800 uppercase tracking-tighter">{h.year} {h.duration && `| ${h.duration}`}</div>
+                                      <div className="text-[10px] text-slate-500 font-medium leading-relaxed">{h.content}</div>
+                                    </div>
+                                  ))}
+                               </div>
+                            </div>
+                         </div>
+                         <div className="flex-1 flex flex-col gap-10">
+                            <div className="space-y-6">
+                               <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b pb-2">Core Values</h3>
+                               <div className="grid grid-cols-2 gap-4">
+                                  {(p.core_values || []).slice(0, 4).map((cv: any, i: number) => (
+                                    <div key={i} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm">
+                                      <h4 className="text-xs font-black text-slate-800 mb-1">{cv.title}</h4>
+                                      <p className="text-[10px] text-slate-500 leading-relaxed truncate-2-lines">{cv.content}</p>
+                                    </div>
+                                  ))}
+                               </div>
+                            </div>
+                            <div className="flex-1 flex flex-col min-h-0">
+                               <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b pb-2 mb-6">Technical Skills</h3>
+                               <div className="grid grid-cols-1 gap-4 overflow-y-auto pr-4 custom-scrollbar">
+                                  {(p.skills || []).map((s: any, i: number) => (
+                                    <div key={i} className="space-y-1.5">
+                                      <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-600"><span>{s.name}</span><span>{s.level}%</span></div>
+                                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden shadow-inner">
+                                         <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-1000" style={{ width: `${s.level}%` }}></div>
+                                      </div>
+                                    </div>
+                                  ))}
+                               </div>
+                            </div>
+                         </div>
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {el.type === 'project_detail_page' && (() => {
+                  const p = el.content
+                  const parsed = parseProjectContent(p.content)
+                  const sections = {
+                    background: p.overrides?.background || parsed.background,
+                    problem: p.overrides?.problem || parsed.problem,
+                    solution: p.overrides?.solution || parsed.solution,
+                    period: p.overrides?.period || parsed.period,
+                    tech: p.overrides?.tech ? p.overrides.tech.split(',') : (p.tech_stack || parsed.tech)
+                  }
+                  const mediaWidth = el.layoutConfig?.mediaWidth || 50
+                  
+                  return (
+                    <div className="w-full h-full flex flex-col p-12 bg-white text-slate-900 border border-slate-100" style={{ WebkitPrintColorAdjust: 'exact' } as any}>
+                      {/* Header Area */}
+                      <div className="flex-shrink-0 border-b-2 border-slate-900 pb-4 mb-6 flex items-center justify-between">
+                        <div>
+                          <h2 
+                            contentEditable 
+                            suppressContentEditableWarning
+                            onBlur={(e) => updateElement(el.id, { content: { ...el.content, title: e.currentTarget.textContent } })}
+                            className="text-3xl font-black uppercase tracking-tight outline-none focus:ring-2 ring-emerald-500/20 px-1 rounded"
+                          >
+                             Project: {p.title}
+                          </h2>
+                          <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">{sections.period}</p>
+                        </div>
+                        <div className="flex gap-2">
+                           {(sections.tech || []).slice(0, 4).map((tech: string, i: number) => (
+                             <span key={i} className="px-3 py-1 bg-slate-900 text-white text-[10px] font-black rounded-full uppercase tracking-widest">{tech.trim()}</span>
+                           ))}
+                        </div>
+                      </div>
+
+                      {/* Middle Area */}
+                      <div className="flex flex-1 gap-10 min-h-0 mb-8 items-start">
+                        <div className="flex-shrink-0 relative group h-full max-h-[350px]" style={{ width: `${mediaWidth}%` }}>
+                          <div className="w-full h-full bg-slate-50 rounded-2xl overflow-hidden border border-slate-200 shadow-inner group-hover:ring-2 ring-emerald-500/50 transition-all cursor-pointer"
+                            onClick={() => setIsImagePickerOpen({ elementId: el.id, projectPhotos: p.images || [] })}>
+                            <img src={p.thumbnail_url || (p.images?.[0]) || ''} className="w-full h-full object-cover" style={{ objectPosition: `${p.focus?.x || 50}% ${p.focus?.y || 50}%` }} />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                              <span className="text-[10px] font-black text-white bg-white/20 backdrop-blur px-3 py-1.5 rounded-full border border-white/20 uppercase tracking-widest">Select Image</span>
+                            </div>
+                          </div>
+                          <div className="absolute -right-6 top-1/2 -translate-y-1/2 w-2 h-12 bg-slate-200 rounded-full cursor-col-resize hover:bg-emerald-400 transition-colors z-30"
+                            onMouseDown={(e) => {
+                              e.stopPropagation()
+                              const startX = e.clientX
+                              const startWidth = mediaWidth
+                              const handleMouseMove = (mmE: MouseEvent) => {
+                                const diff = (mmE.clientX - startX) / zoom / 11.31
+                                updateElement(el.id, { layoutConfig: { mediaWidth: Math.min(80, Math.max(20, startWidth + diff)) } })
+                              }
+                              const handleMouseUp = () => {
+                                window.removeEventListener('mousemove', handleMouseMove)
+                                window.removeEventListener('mouseup', handleMouseUp)
+                              }
+                              window.addEventListener('mousemove', handleMouseMove)
+                              window.addEventListener('mouseup', handleMouseUp)
+                            }}></div>
+                        </div>
+                        <div className="flex-1 min-w-0 pr-4 flex flex-col h-full">
+                           <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b pb-2 mb-4">Overview</h3>
+                           <p 
+                             contentEditable 
+                             suppressContentEditableWarning
+                             onBlur={(e) => updateElement(el.id, { content: { ...el.content, short_description: e.currentTarget.textContent } })}
+                             className="text-sm font-medium text-slate-600 leading-relaxed whitespace-pre-wrap flex-1 overflow-y-auto custom-scrollbar outline-none focus:ring-2 ring-emerald-500/20 p-1 rounded"
+                           >
+                              {p.short_description || p.content?.substring(0, 500) || '프로젝트의 전반적인 의도와 핵심 기능을 설명하는 영역입니다.'}
+                           </p>
+                        </div>
+                      </div>
+
+                      {/* Bottom Area (3-Column Grid) */}
+                      <div className="flex-shrink-0 grid grid-cols-3 gap-6 h-[180px]">
+                        {[
+                          { label: 'BACKGROUND', content: sections.background },
+                          { label: 'PROBLEM', content: sections.problem },
+                          { label: 'SOLUTION & RESULT', content: sections.solution }
+                        ].map((card, i) => (
+                          <div key={i} className="bg-slate-50 p-5 border-t-[3px] border-slate-900 flex flex-col rounded-b-xl shadow-sm overflow-hidden">
+                            <span className="text-[10px] font-black text-slate-400 mb-3 tracking-widest">{card.label}</span>
+                            <div className="text-[11px] font-semibold text-slate-700 leading-relaxed overflow-y-auto pr-1 flex-1 custom-scrollbar whitespace-pre-wrap">
+                              {card.content}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
+
                 {el.type === 'text' && <div contentEditable onBlur={(e) => updateElement(el.id, { content: e.currentTarget.textContent })} className="w-full h-full p-2 outline-none" style={{ fontSize: el.style.fontSize, fontFamily: el.style.fontFamily, color: el.style.color, textAlign: el.style.textAlign }}>{el.content}</div>}
                 {el.type === 'image' && (
                   <div 
@@ -492,28 +656,6 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                     </div>
                   </div>
                 )}
-                {el.type === 'skill_bar' && (
-                  <div className="w-full p-6 space-y-4 bg-white shadow-md rounded-2xl">
-                    <h3 className="text-xs font-black uppercase text-slate-400 tracking-widest">Skills</h3>
-                    {(profile.skills || []).map((s: any, i: number) => (
-                      <div key={i} className="space-y-1">
-                        <div className="flex justify-between text-[10px] font-bold text-slate-700"><span>{s.name}</span><span>{s.level}%</span></div>
-                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: `${s.level}%` }}></div></div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {el.type === 'timeline' && (
-                  <div className="w-full p-4 space-y-3">
-                    {(profile.work_history || []).map((h: any, i: number) => (
-                      <div key={i} className="border-l-2 border-emerald-200 pl-4 relative">
-                        <div className="absolute -left-[5px] top-1 w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
-                        <div className="text-[10px] font-bold text-slate-800">{h.year}</div>
-                        <div className="text-[10px] text-slate-500">{h.content}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             ))}
           </div>
@@ -539,13 +681,63 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                     <label className="text-[10px] font-black text-slate-500">Opacity</label>
                     <input type="range" min="0" max="1" step="0.1" value={selectedElement.style.opacity} onChange={(e) => updateStyle(selectedId!, { opacity: parseFloat(e.target.value) })} className="w-full" />
                  </div>
+                 {selectedElement.type === 'project_detail_page' && (
+                   <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                      <div className="space-y-2">
+                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Period</label>
+                         <input type="text" value={selectedElement.content.overrides?.period || parseProjectContent(selectedElement.content.content).period} 
+                           onChange={(e) => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: { ...(selectedElement.content.overrides || {}), period: e.target.value } } })} 
+                           className="w-full bg-slate-800 text-[10px] p-2 rounded-lg text-white" />
+                      </div>
+                      <div className="space-y-2">
+                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tech Stack (comma separated)</label>
+                         <input type="text" value={selectedElement.content.overrides?.tech || (selectedElement.content.tech_stack || parseProjectContent(selectedElement.content.content).tech).join(', ')} 
+                           onChange={(e) => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: { ...(selectedElement.content.overrides || {}), tech: e.target.value } } })} 
+                           className="w-full bg-slate-800 text-[10px] p-2 rounded-lg text-white" />
+                      </div>
+                      <div className="space-y-2">
+                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Background</label>
+                         <textarea value={selectedElement.content.overrides?.background || parseProjectContent(selectedElement.content.content).background} 
+                           onChange={(e) => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: { ...(selectedElement.content.overrides || {}), background: e.target.value } } })} 
+                           className="w-full h-24 bg-slate-800 text-[10px] p-2 rounded-lg text-white resize-none" />
+                      </div>
+                      <div className="space-y-2">
+                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Problem</label>
+                         <textarea value={selectedElement.content.overrides?.problem || parseProjectContent(selectedElement.content.content).problem} 
+                           onChange={(e) => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: { ...(selectedElement.content.overrides || {}), problem: e.target.value } } })} 
+                           className="w-full h-24 bg-slate-800 text-[10px] p-2 rounded-lg text-white resize-none" />
+                      </div>
+                      <div className="space-y-2">
+                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Solution</label>
+                         <textarea value={selectedElement.content.overrides?.solution || parseProjectContent(selectedElement.content.content).solution} 
+                           onChange={(e) => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: { ...(selectedElement.content.overrides || {}), solution: e.target.value } } })} 
+                           className="w-full h-24 bg-slate-800 text-[10px] p-2 rounded-lg text-white resize-none" />
+                      </div>
+                   </div>
+                 )}
+
                  {selectedElement.type === 'text' && (
                    <div className="space-y-4">
-                     <select value={selectedElement.style.fontFamily} onChange={(e) => updateStyle(selectedId!, { fontFamily: e.target.value })} className="w-full bg-slate-800 text-xs rounded p-2">
+                     <select value={selectedElement.style.fontFamily} onChange={(e) => updateStyle(selectedId!, { fontFamily: e.target.value })} className="w-full bg-slate-800 text-xs rounded p-2 text-white border-0">
                        {fonts.map(f => <option key={f} value={f}>{f}</option>)}
                      </select>
-                     <input type="number" value={selectedElement.style.fontSize} onChange={(e) => updateStyle(selectedId!, { fontSize: parseInt(e.target.value) })} className="w-full bg-slate-800 text-xs rounded p-2" />
-                     <input type="color" value={selectedElement.style.color} onChange={(e) => updateStyle(selectedId!, { color: e.target.value })} className="w-full h-8 bg-transparent" />
+                     <div className="flex items-center gap-2">
+                        <label className="text-[10px] font-black text-slate-500">Size</label>
+                        <input type="number" value={selectedElement.style.fontSize} onChange={(e) => updateStyle(selectedId!, { fontSize: parseInt(e.target.value) })} className="flex-1 bg-slate-800 text-xs rounded p-2 text-white border-0" />
+                     </div>
+                     <div className="flex items-center gap-2">
+                        <label className="text-[10px] font-black text-slate-500">Color</label>
+                        <input type="color" value={selectedElement.style.color} onChange={(e) => updateStyle(selectedId!, { color: e.target.value })} className="w-full h-10 bg-transparent border-0 cursor-pointer" />
+                     </div>
+                   </div>
+                 )}
+
+                 {selectedElement.type === 'image' && (
+                   <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500">Corner Radius</label>
+                        <input type="range" min="0" max="200" step="10" value={selectedElement.style.borderRadius} onChange={(e) => updateStyle(selectedId!, { borderRadius: parseInt(e.target.value) })} className="w-full" />
+                      </div>
                    </div>
                  )}
                </div>
