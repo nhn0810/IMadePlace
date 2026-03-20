@@ -1,27 +1,30 @@
-'use client'
-
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Users } from 'lucide-react'
 
 export function VisitorStats() {
-  const [stats, setStats] = useState({ today: 0, total: 0 }) // Initial fallback skeleton
+  const [stats, setStats] = useState({ today: 0, total: 0 }) 
+  const hasCalled = useRef(false)
 
   useEffect(() => {
     async function fetchAndIncrement() {
+      if (hasCalled.current) return
+      hasCalled.current = true
+
       try {
-        // Only increment if not visited today
         const todayDate = new Date().toISOString().split('T')[0]
         const visitKey = `visited_${todayDate}`
         const hasVisitedToday = localStorage.getItem(visitKey)
+
+        // Optimistically set to prevent concurrent tabs if possible
+        if (!hasVisitedToday) {
+          localStorage.setItem(visitKey, 'true')
+        }
 
         const res = await fetch(`/api/visitors?increment=${!hasVisitedToday}`)
 
         if (res.ok) {
           const data = await res.json()
           setStats({ today: data.today, total: data.total })
-          if (!hasVisitedToday) {
-            localStorage.setItem(visitKey, 'true')
-          }
         }
       } catch (e) {
         console.error('Visitor stat error', e)

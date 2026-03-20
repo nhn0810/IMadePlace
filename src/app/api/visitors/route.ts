@@ -48,9 +48,9 @@ export async function GET(request: Request) {
     const total = allStats ? allStats.reduce((sum, row) => sum + row.total_visits, 0) : 0
     const today = finalToday ? finalToday.total_visits : (shouldIncrement ? 1 : 0)
 
-    return NextResponse.json({ today: today || 12, total: total || 1402 }) // Fallback to mock baseline if db empty
+    return NextResponse.json({ today: today || 0, total: total || 0 })
   } catch (error) {
     console.error('Visitor API Error:', error)
-    return NextResponse.json({ today: 12, total: 1402 }, { status: 200 }) // Return mocks on failure so UI doesn't break
+    return NextResponse.json({ today: 0, total: 0 }, { status: 200 })
   }
 }
