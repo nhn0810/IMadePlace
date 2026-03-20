@@ -51,6 +51,35 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
     fullPageProjects: {} as Record<string, boolean>
   })
 
+  // --- History & Undo ---
+  const [history, setHistory] = useState<CanvasElement[][]>([])
+  
+  const saveHistory = useCallback(() => {
+    setHistory(prev => {
+      const newHistory = [...prev, JSON.parse(JSON.stringify(elements))]
+      if (newHistory.length > 30) return newHistory.slice(1) // Limit stack size
+      return newHistory
+    })
+  }, [elements])
+
+  const handleUndo = useCallback(() => {
+    if (history.length === 0) return
+    const prevElements = history[history.length - 1]
+    setElements(prevElements)
+    setHistory(prev => prev.slice(0, -1))
+  }, [history])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault()
+        handleUndo()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleUndo])
+
   // --- Multi-page State ---
   const [pages, setPages] = useState<{ id: string }[]>([{ id: 'page-1' }])
   const [activePageId, setActivePageId] = useState<string>('page-1')
@@ -102,10 +131,11 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
   }, [])
 
   const addElement = useCallback((type: ElementType, customContent?: any) => {
+    saveHistory() // Mark for undo
     // Math.random is used here inside an event handler context (indirectly), 
     // but we use useCallback to stabilize the function itself.
     const id = Math.random().toString(36).substring(2, 9)
-    const maxZ = elements.reduce((max, el) => Math.max(max, el.style.zIndex || 0), 0)
+    const maxZ = elements.length > 0 ? Math.max(...elements.map(el => el.style.zIndex)) : 0
     const newElement: CanvasElement = {
       id,
       pageId: activePageId,
@@ -138,11 +168,19 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
   }, [activePageId, elements, userProjects, extractProjectImages])
 
   const updateElement = (id: string, updates: Partial<CanvasElement>) => {
+    saveHistory()
     setElements(prev => prev.map(el => el.id === id ? { ...el, ...updates } : el))
   }
 
   const updateStyle = (id: string, styleUpdates: Partial<CanvasElement['style']>) => {
+    saveHistory()
     setElements(prev => prev.map(el => el.id === id ? { ...el, style: { ...el.style, ...styleUpdates } } : el))
+  }
+
+  const deleteElement = (id: string) => {
+    saveHistory()
+    setElements(prev => prev.filter(el => el.id !== id))
+    setSelectedId(null)
   }
 
   const downloadImage = async (format: 'png' | 'jpg') => {
@@ -241,8 +279,7 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
         if (document.activeElement?.getAttribute('contenteditable') === 'true' || 
             document.activeElement?.tagName === 'INPUT' || 
             document.activeElement?.tagName === 'TEXTAREA') return
-        setElements(prev => prev.filter(el => el.id !== selectedId))
-        setSelectedId(null)
+        deleteElement(selectedId)
       }
       
       if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA' && document.activeElement?.getAttribute('contenteditable') !== 'true') {
@@ -262,7 +299,7 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
       window.removeEventListener('mouseup', handleMouseUp)
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isDragging, selectedId, dragOffset, zoom, activePageId, pages])
+  }, [isDragging, selectedId, dragOffset, zoom, activePageId, pages, deleteElement, updateElement])
 
   const handleInitialize = () => {
     const { useTemplate, selectedProjectIds } = wizardConfig
@@ -431,10 +468,15 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
 
         <div className="absolute left-[200px] top-1/2 -translate-y-1/2 flex flex-col gap-3 z-20">
           <div className="bg-slate-900/80 backdrop-blur-2xl border border-white/10 p-2 rounded-2xl shadow-2xl flex flex-col gap-2">
-            <button onClick={() => addElement('text')} className="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-emerald-500 rounded-xl transition-all"><TypeIcon className="w-5 h-5" /></button>
-            <button onClick={() => addElement('shape')} className="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-emerald-500 rounded-xl transition-all"><Square className="w-5 h-5" /></button>
-            <button onClick={() => addElement('skill_bar')} className="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-emerald-500 rounded-xl transition-all"><Layers className="w-5 h-5" /></button>
-            <button onClick={() => addElement('timeline')} className="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-emerald-500 rounded-xl transition-all"><Layout className="w-5 h-5" /></button>
+            {/* Simplified Toolbar: Only Text and Image */}
+            <button onClick={() => addElement('text')} className="p-4 rounded-2xl bg-slate-800/80 hover:bg-emerald-600 text-white transition-all shadow-xl group relative">
+              <TypeIcon className="w-6 h-6" />
+              <span className="absolute left-full ml-4 px-2 py-1 bg-slate-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">텍스트 배치 박스</span>
+            </button>
+            <button onClick={() => addElement('image')} className="p-4 rounded-2xl bg-slate-800/80 hover:bg-emerald-600 text-white transition-all shadow-xl group relative">
+              <ImageIcon className="w-6 h-6" />
+              <span className="absolute left-full ml-4 px-2 py-1 bg-slate-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">사진 배치 박스</span>
+            </button>
           </div>
           <div className="bg-slate-900/80 backdrop-blur-2xl border border-white/10 p-2 rounded-2xl shadow-2xl max-h-[300px] overflow-y-auto custom-scrollbar flex flex-col gap-2">
             {userProjects.map(p => (
@@ -483,12 +525,13 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                       <div className="flex flex-1 gap-12 overflow-hidden">
                          <div className="w-[35%] flex flex-col gap-8">
                             <div 
-                              className="w-48 h-48 rounded-full border-4 border-slate-100 shadow-xl overflow-hidden self-center cursor-pointer relative group"
-                              onClick={() => {
-                                 const allPhotos = Array.from(new Set(userProjects.flatMap(proj => extractProjectImages(proj.content))))
-                                 setIsImagePickerOpen({ elementId: el.id, projectPhotos: allPhotos })
-                              }}
-                            >
+                               className="w-48 h-64 rounded-2xl border-4 border-slate-100 shadow-2xl overflow-hidden self-center cursor-pointer relative group bg-slate-50"
+                               title="사진 변경"
+                               onClick={() => {
+                                  const allPhotos = Array.from(new Set(userProjects.flatMap(proj => extractProjectImages(proj.content))))
+                                  setIsImagePickerOpen({ elementId: el.id, projectPhotos: allPhotos })
+                               }}
+                             >
                                <img src={p.avatar_url || ''} alt="" className="w-full h-full object-cover" />
                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                                   <span className="text-[10px] font-black text-white uppercase tracking-widest bg-white/20 backdrop-blur px-3 py-1.5 rounded-full border border-white/20">Change Photo</span>
@@ -716,106 +759,115 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
           <button onClick={() => setZoom(Math.min(2, zoom + 0.1))} className="text-slate-500 hover:text-white"><Plus className="w-4 h-4" /></button>
         </div>
 
-        <div className="w-80 bg-slate-900/80 backdrop-blur-2xl border-l border-white/5 flex flex-col z-20 shadow-2xl">
+        <div className="w-[380px] bg-slate-900/90 backdrop-blur-3xl border-l border-white/10 flex flex-col z-20 shadow-[-20px_0_50px_rgba(0,0,0,0.3)]">
           {selectedElement ? (
-            <div className="p-8 space-y-8">
-               <div className="flex justify-between items-center">
-                 <h3 className="text-[10px] font-black uppercase text-slate-500">Properties</h3>
-                 <button onClick={() => { setElements(elements.filter(el => el.id !== selectedId)); setSelectedId(null); }} className="text-slate-500 hover:text-rose-500"><Trash2 className="w-4 h-4" /></button>
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+               <div className="flex justify-between items-center p-8 pb-4 border-b border-white/5">
+                 <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Element Properties</h3>
+                 <button 
+                   onClick={() => deleteElement(selectedId!)} 
+                   className="p-2 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"
+                   title="Delete Element"
+                 >
+                   <Trash2 className="w-5 h-5" />
+                 </button>
                </div>
-               <div className="space-y-4">
-                 <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-500">Opacity</label>
-                    <input type="range" min="0" max="1" step="0.1" value={selectedElement.style.opacity} onChange={(e) => updateStyle(selectedId!, { opacity: parseFloat(e.target.value) })} className="w-full" />
-                 </div>
-                 
-                 {selectedElement.type === 'project_detail_page' && (
-                   <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                      <div className="space-y-2">
-                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Period</label>
-                         <input type="text" value={selectedElement.content.overrides?.period || parseProjectContent(selectedElement.content.content).period} 
-                           onChange={(e) => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: { ...(selectedElement.content.overrides || {}), period: e.target.value } } })} 
-                           className="w-full bg-slate-800 text-[10px] p-2 rounded-lg text-white" />
-                      </div>
-                      <div className="space-y-2">
-                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tech Stack (comma separated)</label>
-                         <input type="text" value={selectedElement.content.overrides?.tech || (selectedElement.content.tech_stack || parseProjectContent(selectedElement.content.content).tech).join(', ')} 
-                           onChange={(e) => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: { ...(selectedElement.content.overrides || {}), tech: e.target.value } } })} 
-                           className="w-full bg-slate-800 text-[10px] p-2 rounded-lg text-white" />
-                      </div>
-                      <div className="space-y-2">
-                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Background</label>
-                         <textarea value={selectedElement.content.overrides?.background || parseProjectContent(selectedElement.content.content).background} 
-                           onChange={(e) => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: { ...(selectedElement.content.overrides || {}), background: e.target.value } } })} 
-                           className="w-full h-24 bg-slate-800 text-[10px] p-2 rounded-lg text-white resize-none" />
-                      </div>
-                      <div className="space-y-2">
-                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Problem</label>
-                         <textarea value={selectedElement.content.overrides?.problem || parseProjectContent(selectedElement.content.content).problem} 
-                           onChange={(e) => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: { ...(selectedElement.content.overrides || {}), problem: e.target.value } } })} 
-                           className="w-full h-24 bg-slate-800 text-[10px] p-2 rounded-lg text-white resize-none" />
-                      </div>
-                      <div className="space-y-2">
-                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Solution</label>
-                         <textarea value={selectedElement.content.overrides?.solution || parseProjectContent(selectedElement.content.content).solution} 
-                           onChange={(e) => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: { ...(selectedElement.content.overrides || {}), solution: e.target.value } } })} 
-                           className="w-full h-24 bg-slate-800 text-[10px] p-2 rounded-lg text-white resize-none" />
-                      </div>
-                      
-                      <div className="pt-4 flex flex-col gap-2">
-                        <button 
-                          onClick={() => {
-                            const pageRoot = elements.find(er => er.pageId === activePageId && (er.type === 'project_detail_page' || er.type === 'profile_page'))
-                            if (pageRoot) {
-                              let allPhotos = []
-                              if (pageRoot.type === 'project_detail_page') {
-                                 allPhotos = extractProjectImages(pageRoot.content.content)
+               
+               <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar pb-24">
+                 <div className="space-y-4">
+                   <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-500">Opacity</label>
+                      <input type="range" min="0" max="1" step="0.1" value={selectedElement.style.opacity} onChange={(e) => updateStyle(selectedId!, { opacity: parseFloat(e.target.value) })} className="w-full" />
+                   </div>
+                   
+                   {selectedElement.type === 'project_detail_page' && (
+                     <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                        <div className="space-y-2">
+                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Period</label>
+                           <input type="text" value={selectedElement.content.overrides?.period || parseProjectContent(selectedElement.content.content).period} 
+                             onChange={(e) => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: { ...(selectedElement.content.overrides || {}), period: e.target.value } } })} 
+                             className="w-full bg-slate-800 text-[10px] p-2 rounded-lg text-white" />
+                        </div>
+                        <div className="space-y-2">
+                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tech Stack (comma separated)</label>
+                           <input type="text" value={selectedElement.content.overrides?.tech || (selectedElement.content.tech_stack || parseProjectContent(selectedElement.content.content).tech).join(', ')} 
+                             onChange={(e) => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: { ...(selectedElement.content.overrides || {}), tech: e.target.value } } })} 
+                             className="w-full bg-slate-800 text-[10px] p-2 rounded-lg text-white" />
+                        </div>
+                        <div className="space-y-2">
+                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Background</label>
+                           <textarea value={selectedElement.content.overrides?.background || parseProjectContent(selectedElement.content.content).background} 
+                             onChange={(e) => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: { ...(selectedElement.content.overrides || {}), background: e.target.value } } })} 
+                             className="w-full h-24 bg-slate-800 text-[10px] p-2 rounded-lg text-white resize-none" />
+                        </div>
+                        <div className="space-y-2">
+                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Problem</label>
+                           <textarea value={selectedElement.content.overrides?.problem || parseProjectContent(selectedElement.content.content).problem} 
+                             onChange={(e) => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: { ...(selectedElement.content.overrides || {}), problem: e.target.value } } })} 
+                             className="w-full h-24 bg-slate-800 text-[10px] p-2 rounded-lg text-white resize-none" />
+                        </div>
+                        <div className="space-y-2">
+                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Solution</label>
+                           <textarea value={selectedElement.content.overrides?.solution || parseProjectContent(selectedElement.content.content).solution} 
+                             onChange={(e) => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: { ...(selectedElement.content.overrides || {}), solution: e.target.value } } })} 
+                             className="w-full h-24 bg-slate-800 text-[10px] p-2 rounded-lg text-white resize-none" />
+                        </div>
+                        
+                        <div className="pt-4 flex flex-col gap-2">
+                          <button 
+                            onClick={() => {
+                              const pageRoot = elements.find(er => er.pageId === activePageId && (er.type === 'project_detail_page' || er.type === 'profile_page'))
+                              if (pageRoot) {
+                                let allPhotos = []
+                                if (pageRoot.type === 'project_detail_page') {
+                                   allPhotos = extractProjectImages(pageRoot.content.content)
+                                } else {
+                                   allPhotos = Array.from(new Set(userProjects.flatMap(proj => extractProjectImages(proj.content))))
+                                }
+                                addElement('image', { url: allPhotos[0] || '', thumbnail_url: allPhotos[0] || '' })
                               } else {
-                                 allPhotos = Array.from(new Set(userProjects.flatMap(proj => extractProjectImages(proj.content))))
+                                addElement('image')
                               }
-                              addElement('image', { url: allPhotos[0] || '', thumbnail_url: allPhotos[0] || '' })
-                            } else {
-                              addElement('image')
-                            }
-                          }}
-                          className="w-full py-2 bg-emerald-500/10 text-emerald-500 rounded-lg text-[10px] font-black uppercase tracking-widest border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all text-center"
-                        >
-                           + Add Image to Slide
-                        </button>
-                        <button 
-                          onClick={() => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: {} } })} 
-                          className="w-full py-2 bg-slate-800 text-slate-400 rounded-lg text-[10px] font-black uppercase tracking-widest border border-white/5 hover:text-white transition-all text-center"
-                        >
-                           Reset to Auto-Parse
-                        </button>
-                      </div>
-                   </div>
-                 )}
-
-                 {selectedElement.type === 'text' && (
-                   <div className="space-y-4">
-                     <select value={selectedElement.style.fontFamily} onChange={(e) => updateStyle(selectedId!, { fontFamily: e.target.value })} className="w-full bg-slate-800 text-xs rounded p-2 text-white border-0">
-                       {fonts.map(f => <option key={f} value={f}>{f}</option>)}
-                     </select>
-                     <div className="flex items-center gap-2">
-                        <label className="text-[10px] font-black text-slate-500">Size</label>
-                        <input type="number" value={selectedElement.style.fontSize} onChange={(e) => updateStyle(selectedId!, { fontSize: parseInt(e.target.value) })} className="flex-1 bg-slate-800 text-xs rounded p-2 text-white border-0" />
+                            }}
+                            className="w-full py-2 bg-emerald-500/10 text-emerald-500 rounded-lg text-[10px] font-black uppercase tracking-widest border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all text-center"
+                          >
+                             + Add Image to Slide
+                          </button>
+                          <button 
+                            onClick={() => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: {} } })} 
+                            className="w-full py-2 bg-slate-800 text-slate-400 rounded-lg text-[10px] font-black uppercase tracking-widest border border-white/5 hover:text-white transition-all text-center"
+                          >
+                             Reset to Auto-Parse
+                          </button>
+                        </div>
                      </div>
-                     <div className="flex items-center gap-2">
-                        <label className="text-[10px] font-black text-slate-500">Color</label>
-                        <input type="color" value={selectedElement.style.color} onChange={(e) => updateStyle(selectedId!, { color: e.target.value })} className="w-full h-10 bg-transparent border-0 cursor-pointer" />
-                     </div>
-                   </div>
-                 )}
+                   )}
 
-                 {selectedElement.type === 'image' && (
-                   <div className="space-y-4">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-500">Corner Radius</label>
-                        <input type="range" min="0" max="200" step="10" value={selectedElement.style.borderRadius} onChange={(e) => updateStyle(selectedId!, { borderRadius: parseInt(e.target.value) })} className="w-full" />
-                      </div>
-                   </div>
-                 )}
+                   {selectedElement.type === 'text' && (
+                     <div className="space-y-4">
+                       <select value={selectedElement.style.fontFamily} onChange={(e) => updateStyle(selectedId!, { fontFamily: e.target.value })} className="w-full bg-slate-800 text-xs rounded p-2 text-white border-0">
+                         {fonts.map(f => <option key={f} value={f}>{f}</option>)}
+                       </select>
+                       <div className="flex items-center gap-2">
+                          <label className="text-[10px] font-black text-slate-500">Size</label>
+                          <input type="number" value={selectedElement.style.fontSize} onChange={(e) => updateStyle(selectedId!, { fontSize: parseInt(e.target.value) })} className="flex-1 bg-slate-800 text-xs rounded p-2 text-white border-0" />
+                       </div>
+                       <div className="flex items-center gap-2">
+                          <label className="text-[10px] font-black text-slate-500">Color</label>
+                          <input type="color" value={selectedElement.style.color} onChange={(e) => updateStyle(selectedId!, { color: e.target.value })} className="w-full h-10 bg-transparent border-0 cursor-pointer" />
+                       </div>
+                     </div>
+                   )}
+
+                   {selectedElement.type === 'image' && (
+                     <div className="space-y-4">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-500">Corner Radius</label>
+                          <input type="range" min="0" max="200" step="10" value={selectedElement.style.borderRadius} onChange={(e) => updateStyle(selectedId!, { borderRadius: parseInt(e.target.value) })} className="w-full" />
+                        </div>
+                     </div>
+                   )}
+                 </div>
                </div>
             </div>
           ) : (
@@ -839,11 +891,52 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
       {isImagePickerOpen && (
         <div className="fixed inset-0 z-[110] bg-slate-950/80 backdrop-blur-xl flex items-center justify-center p-6">
           <div className="w-full max-w-xl bg-slate-900 border border-white/10 rounded-[32px] overflow-hidden">
-            <div className="p-8 border-b border-white/5 flex items-center justify-between">
-              <h3 className="font-black text-white text-sm uppercase tracking-widest">Select Project Image</h3>
-              <button onClick={() => setIsImagePickerOpen(null)} className="p-2 text-slate-400 hover:text-white"><ArrowLeft className="w-4 h-4" /></button>
-            </div>
-            <div className="p-8 grid grid-cols-2 gap-4 max-h-[400px] overflow-y-auto custom-scrollbar">
+                <div className="flex items-center justify-between mb-8 p-8 border-b border-white/5">
+                  <h2 className="text-2xl font-black text-white tracking-tight">SELECT IMAGE</h2>
+                  <div className="flex items-center gap-4">
+                    <label className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-xl cursor-pointer transition-all shadow-lg active:scale-95">
+                      내 PC에서 업로드
+                      <input 
+                        type="file" 
+                        className="hidden" 
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) {
+                            const reader = new FileReader()
+                            reader.onload = (event) => {
+                              const dataUrl = event.target?.result as string
+                              const currentElement = elements.find(e => e.id === isImagePickerOpen.elementId)
+                              
+                              if (currentElement?.type === 'profile_page') {
+                                updateElement(isImagePickerOpen.elementId, { 
+                                  content: { 
+                                    ...currentElement.content, 
+                                    profile: { 
+                                      ...(currentElement.content.profile || profile), 
+                                      avatar_url: dataUrl 
+                                    } 
+                                  } 
+                                })
+                              } else {
+                                updateElement(isImagePickerOpen.elementId, { 
+                                  content: { ...currentElement?.content, url: dataUrl, thumbnail_url: dataUrl } 
+                                })
+                              }
+                              setIsImagePickerOpen(null)
+                            }
+                            reader.readAsDataURL(file)
+                          }
+                        }}
+                      />
+                    </label>
+                    <button onClick={() => setIsImagePickerOpen(null)} className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-all">
+                      <ArrowLeft className="w-6 h-6" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-8 grid grid-cols-2 gap-4 max-h-[400px] overflow-y-auto custom-scrollbar">
               {isImagePickerOpen.projectPhotos.map((url, i) => (
                 <button 
                   key={i} 
