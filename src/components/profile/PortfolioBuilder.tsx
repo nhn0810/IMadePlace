@@ -9,7 +9,7 @@ import {
 import Link from 'next/link'
 import { toPng, toJpeg } from 'html-to-image'
 
-type ElementType = 'text' | 'image' | 'shape' | 'project' | 'skill_bar' | 'timeline' | 'profile_page' | 'project_detail_page'
+type ElementType = 'text' | 'image' | 'shape' | 'project' | 'skill_bar' | 'timeline'
 
 interface CanvasElement {
   id: string
@@ -50,6 +50,11 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
     selectedProjectIds: [] as string[],
     fullPageProjects: {} as Record<string, boolean>
   })
+  
+  // --- Resizing State ---
+  const [resizingId, setResizingId] = useState<string | null>(null)
+  const [resizeHandle, setResizeHandle] = useState<string | null>(null) // 'tl', 'tr', 'bl', 'br', 't', 'b', 'l', 'r'
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, w: 0, h: 0, elX: 0, elY: 0 })
 
   // --- History & Undo ---
   const [history, setHistory] = useState<CanvasElement[][]>([])
@@ -252,6 +257,22 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
     return sections
   }
 
+  const onResizeStart = (id: string, handle: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const el = elements.find(el => el.id === id)
+    if (!el) return
+    setResizingId(id)
+    setResizeHandle(handle)
+    setResizeStart({
+      x: e.clientX / zoom,
+      y: e.clientY / zoom,
+      w: el.w,
+      h: el.h,
+      elX: el.x,
+      elY: el.y
+    })
+  }
+
   const onMouseDown = (id: string, e: React.MouseEvent) => {
     setSelectedId(id)
     setIsDragging(true)
@@ -272,8 +293,45 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
           y: e.clientY / zoom - dragOffset.y
         })
       }
+      
+      if (resizingId && resizeHandle) {
+        const dx = e.clientX / zoom - resizeStart.x
+        const dy = e.clientY / zoom - resizeStart.y
+        const el = elements.find(el => el.id === resizingId)
+        if (!el) return
+
+        let newX = el.x
+        let newY = el.y
+        let newW = el.w
+        let newH = el.h
+
+        if (resizeHandle.includes('r')) newW = Math.max(20, resizeStart.w + dx)
+        if (resizeHandle.includes('b')) newH = Math.max(20, resizeStart.h + dy)
+        
+        if (resizeHandle.includes('l')) {
+          const w = Math.max(20, resizeStart.w - dx)
+          if (w !== 20) {
+            newW = w
+            newX = resizeStart.elX + dx
+          }
+        }
+        
+        if (resizeHandle.includes('t')) {
+          const h = Math.max(20, resizeStart.h - dy)
+          if (h !== 20) {
+            newH = h
+            newY = resizeStart.elY + dy
+          }
+        }
+
+        updateElement(resizingId, { x: newX, y: newY, w: newW, h: newH })
+      }
     }
-    const handleMouseUp = () => setIsDragging(false)
+    const handleMouseUp = () => {
+       setIsDragging(false)
+       setResizingId(null)
+       setResizeHandle(null)
+    }
     const handleKeyDown = (e: KeyboardEvent) => {
       if (selectedId && (e.key === 'Delete' || e.key === 'Backspace')) {
         if (document.activeElement?.getAttribute('contenteditable') === 'true' || 
@@ -302,25 +360,82 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
   }, [isDragging, selectedId, dragOffset, zoom, activePageId, pages, deleteElement, updateElement])
 
   const handleInitialize = () => {
-    const { useTemplate, selectedProjectIds } = wizardConfig
+    const { selectedProjectIds } = wizardConfig
     const newElements: CanvasElement[] = []
     const newPages: { id: string }[] = [{ id: 'page-1' }]
     
-    if (!useTemplate) {
-      setPages(newPages)
-      setActivePageId('page-1')
-      setElements([])
-      setShowWizard(false)
-      return
-    }
-
+    // Decompose Profile Template
+    const p = profile
+    // Header
     newElements.push({
-      id: 'profile-page-root',
-      pageId: 'page-1',
-      type: 'profile_page',
-      x: 0, y: 0, w: 1131, h: 800,
-      content: { profile },
-      style: { zIndex: 1, opacity: 1 }
+      id: 'profile-name', pageId: 'page-1', type: 'text', x: 48, y: 48, w: 1035, h: 60,
+      content: p.display_name, style: { zIndex: 1, color: '#0f172a', fontSize: 48, fontWeight: '900', textAlign: 'left', fontFamily: 'Inter' }
+    })
+    newElements.push({
+      id: 'profile-bio', pageId: 'page-1', type: 'text', x: 48, y: 110, w: 1035, h: 30,
+      content: p.bio || '사용자 경험을 설계하는 개발자', style: { zIndex: 2, color: '#64748b', fontSize: 18, fontWeight: '500', textAlign: 'left', fontFamily: 'Inter' }
+    })
+    newElements.push({
+      id: 'profile-line', pageId: 'page-1', type: 'shape', x: 48, y: 155, w: 1035, h: 2,
+      content: '', style: { zIndex: 3, backgroundColor: '#0f172a', opacity: 1 }
+    })
+    
+    // Left Column
+    newElements.push({
+      id: 'profile-avatar', pageId: 'page-1', type: 'image', x: 120, y: 200, w: 220, h: 290,
+      content: { url: p.avatar_url || '', focus: { x: 50, y: 50 } }, style: { zIndex: 4, borderRadius: 16 }
+    })
+    newElements.push({
+      id: 'profile-info-label', pageId: 'page-1', type: 'text', x: 80, y: 520, w: 300, h: 20,
+      content: 'INFORMATION', style: { zIndex: 5, color: '#94a3b8', fontSize: 10, fontWeight: '900', textAlign: 'left', fontFamily: 'Inter' }
+    })
+    newElements.push({
+      id: 'profile-email', pageId: 'page-1', type: 'text', x: 80, y: 545, w: 300, h: 20,
+      content: `Email: ${p.email}`, style: { zIndex: 6, color: '#334155', fontSize: 12, fontWeight: '700', textAlign: 'left', fontFamily: 'Inter' }
+    })
+
+    // Core Values
+    newElements.push({
+      id: 'profile-cv-label', pageId: 'page-1', type: 'text', x: 450, y: 170, w: 600, h: 20,
+      content: 'CORE VALUES', style: { zIndex: 10, color: '#94a3b8', fontSize: 10, fontWeight: '900', textAlign: 'left', fontFamily: 'Inter' }
+    })
+    
+    const coreValues = p.core_values || []
+    coreValues.slice(0, 4).forEach((cv: any, i: number) => {
+      const row = Math.floor(i / 2)
+      const col = i % 2
+      newElements.push({
+        id: `profile-cv-${i}`, pageId: 'page-1', type: 'text', x: 450 + col * 310, y: 200 + row * 110, w: 290, h: 90,
+        content: `${cv.title}\n${cv.content}`, style: { zIndex: 11 + i, fontSize: 10, backgroundColor: '#f8fafc', borderRadius: 16, color: '#334155', fontWeight: '500' }
+      })
+    })
+
+    // Skills
+    newElements.push({
+      id: 'profile-skills-label', pageId: 'page-1', type: 'text', x: 450, y: 440, w: 600, h: 20,
+      content: 'TECHNICAL SKILLS', style: { zIndex: 20, color: '#94a3b8', fontSize: 10, fontWeight: '900', textAlign: 'left', fontFamily: 'Inter' }
+    })
+    
+    const skills = p.skills || []
+    skills.slice(0, 6).forEach((s: any, i: number) => {
+      newElements.push({
+        id: `profile-skill-${i}`, pageId: 'page-1', type: 'text', x: 450, y: 470 + i * 35, w: 600, h: 30,
+        content: `${s.name} - ${s.level}%`, style: { zIndex: 21 + i, fontSize: 12, color: '#10b981', fontWeight: '900', textAlign: 'left' }
+      })
+    })
+
+    // Timeline
+    newElements.push({
+      id: 'profile-timeline-label', pageId: 'page-1', type: 'text', x: 80, y: 580, w: 300, h: 20,
+      content: 'TIMELINE', style: { zIndex: 30, color: '#94a3b8', fontSize: 10, fontWeight: '900', textAlign: 'left', fontFamily: 'Inter' }
+    })
+    
+    const timeline = p.work_history || []
+    timeline.slice(0, 3).forEach((h: any, i: number) => {
+      newElements.push({
+        id: `profile-tl-${i}`, pageId: 'page-1', type: 'text', x: 80, y: 610 + i * 50, w: 300, h: 45,
+        content: `${h.year}: ${h.content}`, style: { zIndex: 31 + i, fontSize: 10, color: '#64748b', fontWeight: '500', textAlign: 'left' }
+      })
     })
 
     const selectedProjectsData = userProjects.filter(p => selectedProjectIds.includes(p.id))
@@ -328,14 +443,61 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
       const pageId = `page-${newPages.length + 1}`
       newPages.push({ id: pageId })
       
+      const parsed = parseProjectContent(project.content)
+      const sections = {
+        background: project.overrides?.background || parsed.background,
+        problem: project.overrides?.problem || parsed.problem,
+        solution: project.overrides?.solution || parsed.solution,
+        period: project.overrides?.period || parsed.period,
+        tech: project.overrides?.tech ? project.overrides.tech.split(',') : (project.tech_stack || parsed.tech)
+      }
+
+      // Decompose Project Detail
+      // Title & Period
       newElements.push({
-        id: `project-detail-${project.id}`, 
-        pageId,
-        type: 'project_detail_page', 
-        x: 0, y: 0, w: 1131, h: 800,
-        content: project,
-        layoutConfig: { mediaWidth: 50 },
-        style: { zIndex: 10 + idx, opacity: 1 }
+        id: `proj-title-${project.id}`, pageId, type: 'text', x: 48, y: 48, w: 700, h: 50,
+        content: `Project: ${project.title}`, style: { zIndex: 10, color: '#0f172a', fontSize: 32, fontWeight: '900', textAlign: 'left' }
+      })
+      newElements.push({
+        id: `proj-period-${project.id}`, pageId, type: 'text', x: 48, y: 100, w: 300, h: 20,
+        content: sections.period, style: { zIndex: 11, color: '#94a3b8', fontSize: 12, fontWeight: '700', textAlign: 'left' }
+      })
+      newElements.push({
+        id: `proj-line-${project.id}`, pageId, type: 'shape', x: 48, y: 135, w: 1035, h: 2,
+        content: '', style: { zIndex: 12, backgroundColor: '#0f172a' }
+      })
+
+      // Main Media & Overview
+      newElements.push({
+        id: `proj-img-${project.id}`, pageId, type: 'image', x: 70, y: 170, w: 480, h: 320,
+        content: { url: project.thumbnail_url || (project.images?.[0]) || '', focus: { x: 50, y: 50 } }, style: { zIndex: 13, borderRadius: 20 }
+      })
+      
+      newElements.push({
+        id: `proj-overview-label-${project.id}`, pageId, type: 'text', x: 600, y: 170, w: 450, h: 20,
+        content: 'OVERVIEW', style: { zIndex: 14, color: '#94a3b8', fontSize: 10, fontWeight: '900', textAlign: 'left' }
+      })
+      newElements.push({
+        id: `proj-desc-${project.id}`, pageId, type: 'text', x: 600, y: 200, w: 450, h: 290,
+        content: project.short_description || project.content?.substring(0, 300), style: { zIndex: 15, fontSize: 14, color: '#475569', fontWeight: '500' }
+      })
+
+      // Bottom Cards
+      const cardY = 540
+      const cardW = 320
+      const cardH = 200
+      
+      newElements.push({
+        id: `proj-card-bg-${project.id}`, pageId, type: 'text', x: 60, y: cardY, w: cardW, h: cardH,
+        content: `BACKGROUND\n\n${sections.background}`, style: { zIndex: 16, fontSize: 11, backgroundColor: '#f8fafc', borderRadius: 16, color: '#334155' }
+      })
+      newElements.push({
+        id: `proj-card-prob-${project.id}`, pageId, type: 'text', x: 405, y: cardY, w: cardW, h: cardH,
+        content: `PROBLEM\n\n${sections.problem}`, style: { zIndex: 17, fontSize: 11, backgroundColor: '#f8fafc', borderRadius: 16, color: '#334155' }
+      })
+      newElements.push({
+        id: `proj-card-sol-${project.id}`, pageId, type: 'text', x: 750, y: cardY, w: cardW, h: cardH,
+        content: `SOLUTION & RESULT\n\n${sections.solution}`, style: { zIndex: 18, fontSize: 11, backgroundColor: '#f8fafc', borderRadius: 16, color: '#334155' }
       })
     })
 
@@ -353,23 +515,11 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
           <div className="p-8 border-b border-white/5 flex items-center justify-between">
             <div>
               <h2 className="text-xl font-black text-white">Portfolio Setup Wizard</h2>
-              <p className="text-xs text-slate-500 font-bold uppercase mt-1">Step {wizardStep} of 2</p>
+              <p className="text-xs text-slate-500 font-bold uppercase mt-1">Select projects to include</p>
             </div>
           </div>
           <div className="p-10 min-h-[400px]">
-            {wizardStep === 1 ? (
-              <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => setWizardConfig({...wizardConfig, useTemplate: true})} className={`p-6 rounded-2xl border-2 transition-all text-left ${wizardConfig.useTemplate ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/5 bg-white/5'}`}>
-                   <Layout className="w-8 h-8 mb-3" />
-                   <div className="font-black text-white">Use Template</div>
-                </button>
-                <button onClick={() => setWizardConfig({...wizardConfig, useTemplate: false})} className={`p-6 rounded-2xl border-2 transition-all text-left ${!wizardConfig.useTemplate ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/5 bg-white/5'}`}>
-                   <Square className="w-8 h-8 mb-3" />
-                   <div className="font-black text-white">Blank Canvas</div>
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-4">
+             <div className="space-y-4">
                 <p className="text-sm font-bold text-slate-400">Select projects to include:</p>
                 <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                   {userProjects.map(p => {
@@ -388,32 +538,14 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                           />
                           <span className={`text-sm font-bold ${isSelected ? 'text-white' : 'text-slate-400'}`}>{p.title}</span>
                         </div>
-                        
-                        {isSelected && (
-                          <div className="flex items-center gap-2 bg-black/20 px-3 py-1.5 rounded-lg border border-white/5">
-                            <input 
-                              type="checkbox" 
-                              id={`full-${p.id}`}
-                              checked={wizardConfig.fullPageProjects[p.id] || false}
-                              onChange={(e) => setWizardConfig({
-                                ...wizardConfig, 
-                                fullPageProjects: { ...wizardConfig.fullPageProjects, [p.id]: e.target.checked }
-                              })}
-                              className="w-3.5 h-3.5 accent-violet-500"
-                            />
-                            <label htmlFor={`full-${p.id}`} className="text-[10px] font-black text-slate-300 uppercase tracking-wider cursor-pointer">Full Page</label>
-                          </div>
-                        )}
                       </div>
                     )
                   })}
                 </div>
               </div>
-            )}
           </div>
-          <div className="p-8 border-t border-white/5 flex gap-3">
-            {wizardStep > 1 && <button onClick={() => setWizardStep(1)} className="px-6 py-3 bg-white/5 text-white rounded-xl font-bold">Back</button>}
-            <button onClick={() => wizardStep === 1 ? setWizardStep(2) : handleInitialize()} className="flex-1 py-3 bg-emerald-500 text-white rounded-xl font-black">{wizardStep === 1 ? 'Next' : 'Generate'}</button>
+          <div className="p-8 border-t border-white/5">
+            <button onClick={handleInitialize} className="w-full py-4 bg-emerald-500 text-white rounded-xl font-black shadow-xl shadow-emerald-500/20 active:scale-95 transition-all">Generate Portfolio</button>
           </div>
         </div>
       </div>
@@ -468,7 +600,6 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
 
         <div className="absolute left-[200px] top-1/2 -translate-y-1/2 flex flex-col gap-3 z-20">
           <div className="bg-slate-900/80 backdrop-blur-2xl border border-white/10 p-2 rounded-2xl shadow-2xl flex flex-col gap-2">
-            {/* Simplified Toolbar: Only Text and Image */}
             <button onClick={() => addElement('text')} className="p-4 rounded-2xl bg-slate-800/80 hover:bg-emerald-600 text-white transition-all shadow-xl group relative">
               <TypeIcon className="w-6 h-6" />
               <span className="absolute left-full ml-4 px-2 py-1 bg-slate-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">텍스트 배치 박스</span>
@@ -498,200 +629,28 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
               transition: isDragging ? 'none' : 'transform 0.2s'
             }}>
             {elements.filter(el => el.pageId === activePageId).map(el => (
-              <div key={el.id} onMouseDown={(e) => onMouseDown(el.id, e)} className={`absolute cursor-move ${selectedId === el.id ? 'ring-2 ring-emerald-500' : ''}`}
-                style={{ left: el.x, top: el.y, width: el.w, height: el.h, zIndex: el.style.zIndex, opacity: el.style.opacity, backgroundColor: el.style.backgroundColor }}>
-                {el.type === 'profile_page' && (() => {
-                  const p = el.content.profile || profile
-                  return (
-                    <div className="w-full h-full flex flex-col p-12 bg-white text-slate-900 border border-slate-100" style={{ WebkitPrintColorAdjust: 'exact' } as any}>
-                      <div className="flex-shrink-0 border-b-2 border-slate-900 pb-6 mb-8">
-                         <h1 
-                           contentEditable 
-                           suppressContentEditableWarning
-                           onBlur={(e) => updateElement(el.id, { content: { ...el.content, profile: { ...p, display_name: e.currentTarget.textContent } } })}
-                           className="text-5xl font-black mb-2 uppercase tracking-tight outline-none focus:ring-2 ring-emerald-500/20 px-1 rounded"
-                         >
-                           {p.display_name}
-                         </h1>
-                         <p 
-                           contentEditable 
-                           suppressContentEditableWarning
-                           onBlur={(e) => updateElement(el.id, { content: { ...el.content, profile: { ...p, bio: e.currentTarget.textContent } } })}
-                           className="text-xl text-slate-500 font-medium outline-none focus:ring-2 ring-emerald-500/20 px-1 rounded"
-                         >
-                           {p.bio || '사용자 경험을 설계하는 개발자'}
-                         </p>
-                      </div>
-                      <div className="flex flex-1 gap-12 overflow-hidden">
-                         <div className="w-[35%] flex flex-col gap-8">
-                            <div 
-                               className="w-48 h-64 rounded-2xl border-4 border-slate-100 shadow-2xl overflow-hidden self-center cursor-pointer relative group bg-slate-50"
-                               title="사진 변경"
-                               onClick={() => {
-                                  const allPhotos = Array.from(new Set(userProjects.flatMap(proj => extractProjectImages(proj.content))))
-                                  setIsImagePickerOpen({ elementId: el.id, projectPhotos: allPhotos })
-                               }}
-                             >
-                               <img src={p.avatar_url || ''} alt="" className="w-full h-full object-cover" />
-                               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                  <span className="text-[10px] font-black text-white uppercase tracking-widest bg-white/20 backdrop-blur px-3 py-1.5 rounded-full border border-white/20">Change Photo</span>
-                               </div>
-                            </div>
-                            <div className="space-y-4">
-                               <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b pb-2">Information</h3>
-                               <div className="space-y-2 text-xs font-bold text-slate-700">
-                                  <div>Email: {p.email}</div>
-                                  {p.work_history?.[0] && <div>Edu/Main: {p.work_history[0].content}</div>}
-                                </div>
-                            </div>
-                            <div className="flex-1 overflow-hidden">
-                               <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b pb-2 mb-4">Timeline</h3>
-                               <div className="space-y-4 overflow-y-auto h-full pr-2 custom-scrollbar">
-                                  {(p.work_history || []).map((h: any, i: number) => (
-                                    <div key={i} className="border-l-2 border-emerald-500 pl-4 relative pb-2">
-                                      <div className="absolute -left-[5px] top-1 w-2 h-2 rounded-full bg-emerald-500"></div>
-                                      <div className="text-[10px] font-black text-slate-800 uppercase tracking-tighter">{h.year} {h.duration && `| ${h.duration}`}</div>
-                                      <div className="text-[10px] text-slate-500 font-medium leading-relaxed">{h.content}</div>
-                                    </div>
-                                  ))}
-                               </div>
-                            </div>
-                         </div>
-                         <div className="flex-1 flex flex-col gap-10">
-                            <div className="space-y-6">
-                               <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b pb-2">Core Values</h3>
-                               <div className="grid grid-cols-2 gap-4">
-                                  {(p.core_values || []).slice(0, 4).map((cv: any, i: number) => (
-                                    <div key={i} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm">
-                                      <h4 className="text-xs font-black text-slate-800 mb-1">{cv.title}</h4>
-                                      <p className="text-[10px] text-slate-500 leading-relaxed truncate-2-lines">{cv.content}</p>
-                                    </div>
-                                  ))}
-                               </div>
-                            </div>
-                            <div className="flex-1 flex flex-col min-h-0">
-                               <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b pb-2 mb-6">Technical Skills</h3>
-                               <div className="grid grid-cols-1 gap-4 overflow-y-auto pr-4 custom-scrollbar">
-                                  {(p.skills || []).map((s: any, i: number) => (
-                                    <div key={i} className="space-y-1.5">
-                                      <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-600"><span>{s.name}</span><span>{s.level}%</span></div>
-                                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden shadow-inner">
-                                         <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-1000" style={{ width: `${s.level}%` }}></div>
-                                      </div>
-                                    </div>
-                                  ))}
-                               </div>
-                            </div>
-                         </div>
-                      </div>
-                    </div>
-                  )
-                })()}
+              <div key={el.id} onMouseDown={(e) => onMouseDown(el.id, e)} className={`absolute cursor-move group/el ${selectedId === el.id ? 'ring-2 ring-emerald-500' : ''}`}
+                style={{ left: el.x, top: el.y, width: el.w, height: el.h, zIndex: el.style.zIndex, opacity: el.style.opacity, backgroundColor: el.style.backgroundColor, borderRadius: el.style.borderRadius }}>
+                
+                {selectedId === el.id && (
+                  <>
+                    <div onMouseDown={(e) => onResizeStart(el.id, 'tl', e)} className="absolute -left-1.5 -top-1.5 w-3 h-3 bg-white border-2 border-emerald-500 rounded-full z-[60] cursor-nwse-resize" />
+                    <div onMouseDown={(e) => onResizeStart(el.id, 'tr', e)} className="absolute -right-1.5 -top-1.5 w-3 h-3 bg-white border-2 border-emerald-500 rounded-full z-[60] cursor-nesw-resize" />
+                    <div onMouseDown={(e) => onResizeStart(el.id, 'bl', e)} className="absolute -left-1.5 -bottom-1.5 w-3 h-3 bg-white border-2 border-emerald-500 rounded-full z-[60] cursor-nesw-resize" />
+                    <div onMouseDown={(e) => onResizeStart(el.id, 'br', e)} className="absolute -right-1.5 -bottom-1.5 w-3 h-3 bg-white border-2 border-emerald-500 rounded-full z-[60] cursor-nwse-resize" />
+                    <div onMouseDown={(e) => onResizeStart(el.id, 't', e)} className="absolute left-1/2 -top-1.5 -translate-x-1/2 w-6 h-1.5 bg-emerald-500 rounded-full z-[60] cursor-ns-resize" />
+                    <div onMouseDown={(e) => onResizeStart(el.id, 'b', e)} className="absolute left-1/2 -bottom-1.5 -translate-x-1/2 w-6 h-1.5 bg-emerald-500 rounded-full z-[60] cursor-ns-resize" />
+                    <div onMouseDown={(e) => onResizeStart(el.id, 'l', e)} className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-emerald-500 rounded-full z-[60] cursor-ew-resize" />
+                    <div onMouseDown={(e) => onResizeStart(el.id, 'r', e)} className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-emerald-500 rounded-full z-[60] cursor-ew-resize" />
+                  </>
+                )}
 
-                {el.type === 'project_detail_page' && (() => {
-                  const p = el.content
-                  const parsed = parseProjectContent(p.content)
-                  const sections = {
-                    background: p.overrides?.background || parsed.background,
-                    problem: p.overrides?.problem || parsed.problem,
-                    solution: p.overrides?.solution || parsed.solution,
-                    period: p.overrides?.period || parsed.period,
-                    tech: p.overrides?.tech ? p.overrides.tech.split(',') : (p.tech_stack || parsed.tech)
-                  }
-                  const mediaWidth = el.layoutConfig?.mediaWidth || 50
-                  
-                  return (
-                    <div className="w-full h-full flex flex-col p-12 bg-white text-slate-900 border border-slate-100" style={{ WebkitPrintColorAdjust: 'exact' } as any}>
-                      <div className="flex-shrink-0 border-b-2 border-slate-900 pb-4 mb-6 flex items-center justify-between">
-                        <div>
-                          <h2 
-                            contentEditable 
-                            suppressContentEditableWarning
-                            onBlur={(e) => updateElement(el.id, { content: { ...el.content, title: e.currentTarget.textContent } })}
-                            className="text-3xl font-black uppercase tracking-tight outline-none focus:ring-2 ring-emerald-500/20 px-1 rounded"
-                          >
-                             Project: {p.title}
-                          </h2>
-                          <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">{sections.period}</p>
-                        </div>
-                        <div className="flex gap-2">
-                           {(sections.tech || []).slice(0, 4).map((tech: string, i: number) => (
-                             <span key={i} className="px-3 py-1 bg-slate-900 text-white text-[10px] font-black rounded-full uppercase tracking-widest">{tech.trim()}</span>
-                           ))}
-                        </div>
-                      </div>
-
-                      <div className="flex flex-1 gap-10 min-h-0 mb-8 items-start">
-                        <div className="flex-shrink-0 relative group h-full max-h-[350px]" style={{ width: `${mediaWidth}%` }}>
-                          <div className="w-full h-full bg-slate-50 rounded-2xl overflow-hidden border border-slate-200 shadow-inner group-hover:ring-2 ring-emerald-500/50 transition-all cursor-pointer"
-                            onClick={() => {
-                              const projectImages = extractProjectImages(p.content)
-                              setIsImagePickerOpen({ elementId: el.id, projectPhotos: projectImages })
-                            }}>
-                            <img src={p.thumbnail_url || (p.images?.[0]) || ''} alt="" className="w-full h-full object-cover" style={{ objectPosition: `${p.focus?.x || 50}% ${p.focus?.y || 50}%` }} />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                              <span className="text-[10px] font-black text-white bg-white/20 backdrop-blur px-3 py-1.5 rounded-full border border-white/20 uppercase tracking-widest">Select Image</span>
-                            </div>
-                          </div>
-                          <div className="absolute -right-6 top-1/2 -translate-y-1/2 w-2 h-12 bg-slate-200 rounded-full cursor-col-resize hover:bg-emerald-400 transition-colors z-30"
-                            onMouseDown={(e) => {
-                              e.stopPropagation()
-                              const startX = e.clientX
-                              const startWidth = mediaWidth
-                              const moveHandler = (mmE: MouseEvent) => {
-                                const diff = (mmE.clientX - startX) / zoom / 11.31
-                                updateElement(el.id, { layoutConfig: { mediaWidth: Math.min(80, Math.max(20, startWidth + diff)) } })
-                              }
-                              const upHandler = () => {
-                                window.removeEventListener('mousemove', moveHandler)
-                                window.removeEventListener('mouseup', upHandler)
-                              }
-                              window.addEventListener('mousemove', moveHandler)
-                              window.addEventListener('mouseup', upHandler)
-                            }}></div>
-                        </div>
-                        <div className="flex-1 min-w-0 pr-4 flex flex-col h-full">
-                           <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b pb-2 mb-4">Overview</h3>
-                           <p 
-                             contentEditable 
-                             suppressContentEditableWarning
-                             onBlur={(e) => updateElement(el.id, { content: { ...el.content, short_description: e.currentTarget.textContent } })}
-                             className="text-sm font-medium text-slate-600 leading-relaxed whitespace-pre-wrap flex-1 overflow-y-auto custom-scrollbar outline-none focus:ring-2 ring-emerald-500/20 p-1 rounded"
-                           >
-                              {p.short_description || p.content?.substring(0, 500) || '프로젝트의 전반적인 의도와 핵심 기능을 설명하는 영역입니다.'}
-                           </p>
-                        </div>
-                      </div>
-
-                      <div className="flex-shrink-0 grid grid-cols-3 gap-6 h-[180px] mt-auto">
-                        {[
-                          { label: 'BACKGROUND', content: sections.background },
-                          { label: 'PROBLEM', content: sections.problem },
-                          { label: 'SOLUTION & RESULT', content: sections.solution }
-                        ].map((card, i) => (
-                          <div key={i} className="bg-slate-50 p-5 border-t-[3px] border-slate-900 flex flex-col rounded-b-xl shadow-sm overflow-hidden">
-                            <span className="text-[10px] font-black text-slate-400 mb-3 tracking-widest">{card.label}</span>
-                            <div className="text-[11px] font-semibold text-slate-700 leading-relaxed overflow-y-auto pr-1 flex-1 custom-scrollbar whitespace-pre-wrap">
-                              {card.content}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                })()}
-
-                {el.type === 'text' && <div contentEditable suppressContentEditableWarning onBlur={(e) => updateElement(el.id, { content: e.currentTarget.textContent })} className="w-full h-full p-2 outline-none" style={{ fontSize: el.style.fontSize, fontFamily: el.style.fontFamily, color: el.style.color, textAlign: el.style.textAlign }}>{el.content}</div>}
+                {el.type === 'text' && <div contentEditable suppressContentEditableWarning onBlur={(e) => updateElement(el.id, { content: e.currentTarget.textContent })} className="w-full h-full p-2 outline-none whitespace-pre-wrap" style={{ fontSize: el.style.fontSize, fontFamily: el.style.fontFamily, color: el.style.color, textAlign: el.style.textAlign, fontWeight: el.style.fontWeight }}>{el.content}</div>}
                 
                 {el.type === 'image' && (
                   <div 
-                    className="w-full h-full relative group cursor-pointer" 
-                    style={{ 
-                        borderRadius: el.style.borderRadius, 
-                        overflow: 'hidden',
-                        border: el.id === 'profile-img' ? '10px solid white' : 'none',
-                        boxShadow: el.id === 'profile-img' ? '0 20px 50px rgba(0,0,0,0.15)' : 'none'
-                    }}
+                    className="w-full h-full relative group cursor-pointer overflow-hidden" 
+                    style={{ borderRadius: el.style.borderRadius }}
                     onClick={() => {
                         const allPhotos = Array.from(new Set(userProjects.flatMap(proj => extractProjectImages(proj.content))))
                         setIsImagePickerOpen({ elementId: el.id, projectPhotos: allPhotos })
@@ -703,51 +662,12 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                       className="w-full h-full object-cover" 
                       style={{ objectPosition: `${el.content.focus?.x || 50}% ${el.content.focus?.y || 50}%` }}
                     />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                       <span className="text-[10px] font-black text-white bg-white/20 backdrop-blur px-3 py-1.5 rounded-full border border-white/20 uppercase tracking-widest">Change Photo</span>
-                    </div>
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[10px] font-black uppercase tracking-widest">Change Photo</div>
                   </div>
                 )}
                 
-                {el.type === 'shape' && (
-                  <div 
-                    className="w-full h-full" 
-                    style={{ 
-                      borderRadius: el.style.borderRadius,
-                      backgroundImage: el.id === 'header-banner' 
-                        ? 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #60a5fa 100%)' 
-                        : undefined 
-                    }}
-                  ></div>
-                )}
-
-                {el.type === 'project' && (
-                  <div className="w-full h-full flex flex-col bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-lg group">
-                    <div 
-                      className="h-40 bg-slate-50 flex items-center justify-center relative cursor-pointer"
-                      onClick={() => setIsImagePickerOpen({ 
-                        elementId: el.id, 
-                        projectPhotos: extractProjectImages(el.content.content)
-                      })}
-                    >
-                       {el.content.thumbnail_url ? (
-                         <img 
-                           src={el.content.thumbnail_url} 
-                           alt=""
-                           className="w-full h-full object-cover" 
-                           style={{ objectPosition: `${el.content.focus?.x || 50}% ${el.content.focus?.y || 50}%` }}
-                         />
-                       ) : <ImageIcon className="w-10 h-10 text-slate-200" />}
-                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                         <span className="text-[10px] font-black text-white bg-white/20 backdrop-blur px-3 py-1.5 rounded-full border border-white/20 uppercase tracking-widest">Change Image</span>
-                       </div>
-                    </div>
-                    <div className="p-6">
-                       <h4 className="font-bold text-slate-900 text-lg">{el.content.title}</h4>
-                       <p className="text-xs text-slate-500 line-clamp-3 mt-2">{el.content.short_description || el.content.content}</p>
-                    </div>
-                  </div>
-                )}
+                {/* Fallback for other types if any */}
+                {el.type === 'shape' && <div className="w-full h-full" style={{ borderRadius: el.style.borderRadius, backgroundColor: el.style.backgroundColor }}></div>}
               </div>
             ))}
           </div>
@@ -764,13 +684,7 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
             <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                <div className="flex justify-between items-center p-8 pb-4 border-b border-white/5">
                  <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Element Properties</h3>
-                 <button 
-                   onClick={() => deleteElement(selectedId!)} 
-                   className="p-2 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"
-                   title="Delete Element"
-                 >
-                   <Trash2 className="w-5 h-5" />
-                 </button>
+                 <button onClick={() => deleteElement(selectedId!)} className="p-2 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"><Trash2 className="w-5 h-5" /></button>
                </div>
                
                <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar pb-24">
@@ -780,90 +694,24 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                       <input type="range" min="0" max="1" step="0.1" value={selectedElement.style.opacity} onChange={(e) => updateStyle(selectedId!, { opacity: parseFloat(e.target.value) })} className="w-full" />
                    </div>
                    
-                   {selectedElement.type === 'project_detail_page' && (
-                     <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                        <div className="space-y-2">
-                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Period</label>
-                           <input type="text" value={selectedElement.content.overrides?.period || parseProjectContent(selectedElement.content.content).period} 
-                             onChange={(e) => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: { ...(selectedElement.content.overrides || {}), period: e.target.value } } })} 
-                             className="w-full bg-slate-800 text-[10px] p-2 rounded-lg text-white" />
-                        </div>
-                        <div className="space-y-2">
-                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tech Stack (comma separated)</label>
-                           <input type="text" value={selectedElement.content.overrides?.tech || (selectedElement.content.tech_stack || parseProjectContent(selectedElement.content.content).tech).join(', ')} 
-                             onChange={(e) => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: { ...(selectedElement.content.overrides || {}), tech: e.target.value } } })} 
-                             className="w-full bg-slate-800 text-[10px] p-2 rounded-lg text-white" />
-                        </div>
-                        <div className="space-y-2">
-                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Background</label>
-                           <textarea value={selectedElement.content.overrides?.background || parseProjectContent(selectedElement.content.content).background} 
-                             onChange={(e) => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: { ...(selectedElement.content.overrides || {}), background: e.target.value } } })} 
-                             className="w-full h-24 bg-slate-800 text-[10px] p-2 rounded-lg text-white resize-none" />
-                        </div>
-                        <div className="space-y-2">
-                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Problem</label>
-                           <textarea value={selectedElement.content.overrides?.problem || parseProjectContent(selectedElement.content.content).problem} 
-                             onChange={(e) => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: { ...(selectedElement.content.overrides || {}), problem: e.target.value } } })} 
-                             className="w-full h-24 bg-slate-800 text-[10px] p-2 rounded-lg text-white resize-none" />
-                        </div>
-                        <div className="space-y-2">
-                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Solution</label>
-                           <textarea value={selectedElement.content.overrides?.solution || parseProjectContent(selectedElement.content.content).solution} 
-                             onChange={(e) => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: { ...(selectedElement.content.overrides || {}), solution: e.target.value } } })} 
-                             className="w-full h-24 bg-slate-800 text-[10px] p-2 rounded-lg text-white resize-none" />
-                        </div>
-                        
-                        <div className="pt-4 flex flex-col gap-2">
-                          <button 
-                            onClick={() => {
-                              const pageRoot = elements.find(er => er.pageId === activePageId && (er.type === 'project_detail_page' || er.type === 'profile_page'))
-                              if (pageRoot) {
-                                let allPhotos = []
-                                if (pageRoot.type === 'project_detail_page') {
-                                   allPhotos = extractProjectImages(pageRoot.content.content)
-                                } else {
-                                   allPhotos = Array.from(new Set(userProjects.flatMap(proj => extractProjectImages(proj.content))))
-                                }
-                                addElement('image', { url: allPhotos[0] || '', thumbnail_url: allPhotos[0] || '' })
-                              } else {
-                                addElement('image')
-                              }
-                            }}
-                            className="w-full py-2 bg-emerald-500/10 text-emerald-500 rounded-lg text-[10px] font-black uppercase tracking-widest border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all text-center"
-                          >
-                             + Add Image to Slide
-                          </button>
-                          <button 
-                            onClick={() => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: {} } })} 
-                            className="w-full py-2 bg-slate-800 text-slate-400 rounded-lg text-[10px] font-black uppercase tracking-widest border border-white/5 hover:text-white transition-all text-center"
-                          >
-                             Reset to Auto-Parse
-                          </button>
-                        </div>
-                     </div>
-                   )}
-
                    {selectedElement.type === 'text' && (
                      <div className="space-y-4">
-                       <select value={selectedElement.style.fontFamily} onChange={(e) => updateStyle(selectedId!, { fontFamily: e.target.value })} className="w-full bg-slate-800 text-xs rounded p-2 text-white border-0">
-                         {fonts.map(f => <option key={f} value={f}>{f}</option>)}
-                       </select>
-                       <div className="flex items-center gap-2">
-                          <label className="text-[10px] font-black text-slate-500">Size</label>
-                          <input type="number" value={selectedElement.style.fontSize} onChange={(e) => updateStyle(selectedId!, { fontSize: parseInt(e.target.value) })} className="flex-1 bg-slate-800 text-xs rounded p-2 text-white border-0" />
-                       </div>
-                       <div className="flex items-center gap-2">
-                          <label className="text-[10px] font-black text-slate-500">Color</label>
-                          <input type="color" value={selectedElement.style.color} onChange={(e) => updateStyle(selectedId!, { color: e.target.value })} className="w-full h-10 bg-transparent border-0 cursor-pointer" />
-                       </div>
+                        <div className="space-y-2">
+                           <label className="text-[10px] font-black text-slate-500">Font Size</label>
+                           <input type="number" value={selectedElement.style.fontSize} onChange={(e) => updateStyle(selectedId!, { fontSize: parseInt(e.target.value) })} className="w-full bg-slate-800 p-2 rounded-lg text-white" />
+                        </div>
+                        <div className="space-y-2">
+                           <label className="text-[10px] font-black text-slate-500">Color</label>
+                           <input type="color" value={selectedElement.style.color} onChange={(e) => updateStyle(selectedId!, { color: e.target.value })} className="w-full h-10 bg-transparent cursor-pointer border-0" />
+                        </div>
                      </div>
                    )}
 
                    {selectedElement.type === 'image' && (
                      <div className="space-y-4">
                         <div className="space-y-2">
-                          <label className="text-[10px] font-black text-slate-500">Corner Radius</label>
-                          <input type="range" min="0" max="200" step="10" value={selectedElement.style.borderRadius} onChange={(e) => updateStyle(selectedId!, { borderRadius: parseInt(e.target.value) })} className="w-full" />
+                           <label className="text-[10px] font-black text-slate-500">Corner Radius</label>
+                           <input type="range" min="0" max="100" step="1" value={selectedElement.style.borderRadius} onChange={(e) => updateStyle(selectedId!, { borderRadius: parseInt(e.target.value) })} className="w-full" />
                         </div>
                      </div>
                    )}
@@ -873,14 +721,14 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-500 grayscale opacity-40">
                <Maximize2 className="w-8 h-8 mb-4" />
-               <p className="text-[10px] font-bold">Select element to Edit</p>
+               <p className="text-[10px] font-bold uppercase tracking-widest">Select element to Edit</p>
             </div>
           )}
           <div className="mt-auto p-8 border-t border-white/5 space-y-3">
             <button onClick={exportJson} className="w-full py-3 bg-slate-800 text-white rounded-xl text-xs font-bold">Save Template</button>
             <div className="flex gap-2">
-               <button onClick={() => downloadImage('png')} className="flex-1 py-3 bg-emerald-500 text-white rounded-xl text-xs font-bold">PNG</button>
-               <button onClick={() => downloadImage('jpg')} className="flex-1 py-3 bg-white/10 text-white rounded-xl text-xs font-bold">JPG</button>
+               <button onClick={() => downloadImage('png')} className="flex-1 py-3 bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase">PNG</button>
+               <button onClick={() => downloadImage('jpg')} className="flex-1 py-3 bg-white/10 text-white rounded-xl text-xs font-bold uppercase">JPG</button>
             </div>
           </div>
         </div>
@@ -890,130 +738,95 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
       
       {isImagePickerOpen && (
         <div className="fixed inset-0 z-[110] bg-slate-950/80 backdrop-blur-xl flex items-center justify-center p-6">
-          <div className="w-full max-w-xl bg-slate-900 border border-white/10 rounded-[32px] overflow-hidden">
-                <div className="flex items-center justify-between mb-8 p-8 border-b border-white/5">
-                  <h2 className="text-2xl font-black text-white tracking-tight">SELECT IMAGE</h2>
-                  <div className="flex items-center gap-4">
-                    <label className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-xl cursor-pointer transition-all shadow-lg active:scale-95">
-                      내 PC에서 업로드
-                      <input 
-                        type="file" 
-                        className="hidden" 
-                        accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0]
-                          if (file) {
-                            const reader = new FileReader()
-                            reader.onload = (event) => {
-                              const dataUrl = event.target?.result as string
-                              const currentElement = elements.find(e => e.id === isImagePickerOpen.elementId)
-                              
-                              if (currentElement?.type === 'profile_page') {
-                                updateElement(isImagePickerOpen.elementId, { 
-                                  content: { 
-                                    ...currentElement.content, 
-                                    profile: { 
-                                      ...(currentElement.content.profile || profile), 
-                                      avatar_url: dataUrl 
-                                    } 
-                                  } 
-                                })
-                              } else {
-                                updateElement(isImagePickerOpen.elementId, { 
-                                  content: { ...currentElement?.content, url: dataUrl, thumbnail_url: dataUrl } 
-                                })
-                              }
-                              setIsImagePickerOpen(null)
-                            }
-                            reader.readAsDataURL(file)
-                          }
-                        }}
-                      />
-                    </label>
-                    <button onClick={() => setIsImagePickerOpen(null)} className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-all">
-                      <ArrowLeft className="w-6 h-6" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="p-8 grid grid-cols-2 gap-4 max-h-[400px] overflow-y-auto custom-scrollbar">
-              {isImagePickerOpen.projectPhotos.map((url, i) => (
-                <button 
-                  key={i} 
-                  onClick={() => {
-                    const el = elements.find(e => e.id === isImagePickerOpen.elementId)
-                    if (el?.type === 'profile_page') {
-                      updateElement(isImagePickerOpen.elementId, { 
-                        content: { ...el.content, profile: { ...el.content.profile, avatar_url: url } } 
-                      })
-                    } else {
-                      updateElement(isImagePickerOpen.elementId, { 
-                        content: { ...elements.find(e => e.id === isImagePickerOpen.elementId)?.content, url: url, thumbnail_url: url } 
-                      })
-                    }
-                    setIsImagePickerOpen(null)
-                    setFocusingPhoto({ elementId: isImagePickerOpen.elementId, imageUrl: url, focus: { x: 50, y: 50 } })
-                  }}
-                  className="aspect-video rounded-2xl overflow-hidden border-2 border-transparent hover:border-emerald-500 transition-all"
-                >
-                  <img src={url} alt="" className="w-full h-full object-cover" />
-                </button>
-              ))}
-              {isImagePickerOpen.projectPhotos.length === 0 && <div className="col-span-2 py-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">No images available</div>}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {focusingPhoto && (
-        <div className="fixed inset-0 z-[120] bg-slate-950/90 backdrop-blur-3xl flex items-center justify-center p-6">
-          <div className="w-full max-w-2xl flex flex-col items-center gap-8">
-            <div className="text-center">
-              <h3 className="text-xl font-black text-white tracking-widest uppercase mb-2">Adjust Image Focus</h3>
-              <p className="text-xs text-slate-500 font-bold uppercase tracking-[0.2em]">Click on the image to set the crop center</p>
-            </div>
-            
-            <div 
-              className="relative rounded-3xl overflow-hidden border border-white/10 shadow-2xl cursor-crosshair group"
-              onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect()
-                const x = ((e.clientX - rect.left) / rect.width) * 100
-                const y = ((e.clientY - rect.top) / rect.height) * 100
-                setFocusingPhoto({ ...focusingPhoto, focus: { x, y } })
-              }}
-            >
-              <img src={focusingPhoto.imageUrl} alt="" className="max-w-full max-h-[60vh] object-contain" />
-              <div 
-                className="absolute w-12 h-12 border-2 border-emerald-500 rounded-full shadow-[0_0_0_9999px_rgba(0,0,0,0.4)] pointer-events-none transition-all duration-300 flex items-center justify-center"
-                style={{ left: `${focusingPhoto.focus.x}%`, top: `${focusingPhoto.focus.y}%`, transform: 'translate(-50%, -50%)' }}
-              >
-                <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+          <div className="w-full max-w-2xl bg-slate-900 border border-white/10 rounded-[32px] overflow-hidden flex flex-col">
+            <div className="p-8 border-b border-white/5 flex items-center justify-between">
+              <h2 className="text-xl font-black text-white">Select Project Photo</h2>
+              <div className="flex gap-3">
+                 <label className="px-4 py-2 bg-emerald-500 text-white text-xs font-black rounded-xl cursor-pointer hover:bg-emerald-600 transition-all">
+                    UP FROM PC
+                    <input type="file" className="hidden" accept="image/*" onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        const reader = new FileReader()
+                        reader.onload = (event) => {
+                          const dataUrl = event.target?.result as string
+                          updateElement(isImagePickerOpen.elementId, { content: { ...elements.find(el => el.id === isImagePickerOpen.elementId)?.content, url: dataUrl } })
+                          setIsImagePickerOpen(null)
+                        }
+                        reader.readAsDataURL(file)
+                      }
+                    }} />
+                 </label>
+                 <button onClick={() => setIsImagePickerOpen(null)} className="p-2 text-slate-500 hover:text-white transition-all"><ArrowLeft className="w-6 h-6" /></button>
               </div>
             </div>
+            <div className="p-8 grid grid-cols-3 gap-4 max-h-[500px] overflow-y-auto custom-scrollbar">
+               {isImagePickerOpen.projectPhotos.map((url, i) => (
+                 <button key={i} onClick={() => {
+                               updateElement(isImagePickerOpen.elementId, { 
+                                 content: { ...elements.find(el => el.id === isImagePickerOpen.elementId)?.content, url: url } 
+                               })
+                               setIsImagePickerOpen(null)
+                               setFocusingPhoto({ elementId: isImagePickerOpen.elementId, imageUrl: url, focus: { x: 50, y: 50 } })
+                             }} className="aspect-video rounded-xl overflow-hidden border-2 border-transparent hover:border-emerald-500 transition-all shadow-lg active:scale-95 group relative">
+                                <img src={url} alt="" className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-emerald-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                             </button>
+                           ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-            <div className="flex gap-4">
-              <button 
-                onClick={() => {
-                  updateElement(focusingPhoto.elementId, { 
-                    content: { ...elements.find(el => el.id === focusingPhoto.elementId)?.content, focus: focusingPhoto.focus } 
-                  })
-                  setFocusingPhoto(null)
-                }}
-                className="px-12 py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-emerald-500/20 active:scale-95 transition-all"
-              >
-                Save Adjustment
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      <style jsx global>{`
-        .dashboard-grid { background-image: linear-gradient(#1a1d23 1px, transparent 1px), linear-gradient(90deg, #1a1d23 1px, transparent 1px); background-size: 40px 40px; }
-        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
-      `}</style>
-    </div>
-  )
-}
+                  {focusingPhoto && (
+                    <div className="fixed inset-0 z-[120] bg-slate-950/90 backdrop-blur-3xl flex items-center justify-center p-6">
+                      <div className="w-full max-w-2xl flex flex-col items-center gap-8">
+                        <div className="text-center">
+                          <h3 className="text-xl font-black text-white tracking-widest uppercase mb-2">Adjust Image Focus</h3>
+                          <p className="text-xs text-slate-500 font-bold uppercase tracking-[0.2em]">Click on the image to set the crop center</p>
+                        </div>
+                        
+                        <div 
+                          className="relative rounded-3xl overflow-hidden border border-white/10 shadow-2xl cursor-crosshair group"
+                          onClick={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect()
+                            const x = ((e.clientX - rect.left) / rect.width) * 100
+                            const y = ((e.clientY - rect.top) / rect.height) * 100
+                            setFocusingPhoto({ ...focusingPhoto, focus: { x, y } })
+                          }}
+                        >
+                          <img src={focusingPhoto.imageUrl} alt="" className="max-w-full max-h-[60vh] object-contain" />
+                          <div 
+                            className="absolute w-12 h-12 border-2 border-emerald-500 rounded-full shadow-[0_0_0_9999px_rgba(0,0,0,0.4)] pointer-events-none transition-all duration-300 flex items-center justify-center"
+                            style={{ left: `${focusingPhoto.focus.x}%`, top: `${focusingPhoto.focus.y}%`, transform: 'translate(-50%, -50%)' }}
+                          >
+                            <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-4">
+                          <button 
+                            onClick={() => {
+                              updateElement(focusingPhoto.elementId, { 
+                                content: { ...elements.find(el => el.id === focusingPhoto.elementId)?.content, focus: focusingPhoto.focus } 
+                              })
+                              setFocusingPhoto(null)
+                            }}
+                            className="px-12 py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-emerald-500/20 active:scale-95 transition-all"
+                          >
+                            Save Adjustment
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <style jsx global>{`
+                    .dashboard-grid { background-image: linear-gradient(#1a1d23 1px, transparent 1px), linear-gradient(90deg, #1a1d23 1px, transparent 1px); background-size: 40px 40px; }
+                    .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+                    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+                  `}</style>
+                </div>
+              )
+            }
