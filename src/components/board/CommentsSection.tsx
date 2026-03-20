@@ -13,10 +13,6 @@ export function CommentsSection({ postId, currentUser }: { postId: string, curre
   
   const supabase = createClient()
 
-  useEffect(() => {
-    fetchComments()
-  }, [postId])
-
   async function fetchComments() {
     const { data } = await supabase
       .from('comments')
@@ -29,6 +25,10 @@ export function CommentsSection({ postId, currentUser }: { postId: string, curre
     
     if (data) setComments(data)
   }
+
+  useEffect(() => {
+    fetchComments()
+  }, [postId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -120,7 +120,7 @@ export function CommentsSection({ postId, currentUser }: { postId: string, curre
             <div key={c.id} className="group flex gap-4">
               <Link href={`/profile/${c.author_id}`} className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden flex-shrink-0 mt-1 hover:opacity-80 transition-opacity">
                 {c.profiles?.avatar_url ? (
-                  <img src={c.profiles.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                  <img src={c.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full bg-slate-300 text-slate-600 flex items-center justify-center font-bold">
                     {c.profiles?.display_name?.[0]?.toUpperCase() || 'U'}

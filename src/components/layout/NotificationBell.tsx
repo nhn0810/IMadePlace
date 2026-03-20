@@ -29,6 +29,34 @@ export function NotificationBell({ userId }: { userId: string }) {
     if (isOpen) setIsOpen(false)
   })
 
+  async function fetchNotifications() {
+    const { data } = await supabase
+      .from('notifications')
+      .select('*')
+      .or(`user_id.eq.${userId},user_id.is.null`)
+      .order('created_at', { ascending: false })
+      .limit(20)
+
+    if (data) {
+      // Filter the initial fetch to only keep the most recent message notification per sender
+      const grouped: Notification[] = []
+      const seenSenders = new Set()
+      
+      data.forEach(n => {
+        if (n.type === 'message') {
+          if (!seenSenders.has(n.sender_id)) {
+            grouped.push(n)
+            seenSenders.add(n.sender_id)
+          }
+        } else {
+          grouped.push(n)
+        }
+      })
+      
+      setNotifications(grouped)
+    }
+  }
+
   useEffect(() => {
     fetchNotifications()
 
@@ -74,34 +102,6 @@ export function NotificationBell({ userId }: { userId: string }) {
       supabase.removeChannel(channel)
     }
   }, [userId])
-
-  async function fetchNotifications() {
-    const { data } = await supabase
-      .from('notifications')
-      .select('*')
-      .or(`user_id.eq.${userId},user_id.is.null`)
-      .order('created_at', { ascending: false })
-      .limit(20)
-
-    if (data) {
-      // Filter the initial fetch to only keep the most recent message notification per sender
-      const grouped: Notification[] = []
-      const seenSenders = new Set()
-      
-      data.forEach(n => {
-        if (n.type === 'message') {
-          if (!seenSenders.has(n.sender_id)) {
-            grouped.push(n)
-            seenSenders.add(n.sender_id)
-          }
-        } else {
-          grouped.push(n)
-        }
-      })
-      
-      setNotifications(grouped)
-    }
-  }
 
   async function handleClickNotification(notif: Notification) {
     // For rejection notifications, show a popup first

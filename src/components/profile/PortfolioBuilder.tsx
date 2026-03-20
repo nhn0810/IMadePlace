@@ -1,12 +1,10 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { 
-  Plus, Trash2, Download, Save, ArrowLeft, Image as ImageIcon, 
-  Type, Square, Layers, Maximize2, Move, Layout, 
-  ChevronRight, ChevronLeft, Type as TypeIcon,
-  Trash, Copy, Eye, FileJson, Minus, Package
+  Plus, Trash2, ArrowLeft, Image as ImageIcon, 
+  Square, Layers, Maximize2, Move, Layout, 
+  Trash, Copy, Package, Minus, Type as TypeIcon
 } from 'lucide-react'
 import Link from 'next/link'
 import { toPng, toJpeg } from 'html-to-image'
@@ -42,7 +40,6 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
   const [elements, setElements] = useState<CanvasElement[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [zoom, setZoom] = useState(0.7)
-  const orientation = 'landscape' // Force landscape
   const canvasRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
@@ -78,19 +75,48 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
   const fonts = ['Inter', 'Roboto', 'Gmarket Sans', 'NanumSquare', 'System']
   const selectedElement = elements.find(el => el.id === selectedId)
 
-  const addElement = (type: ElementType, customContent?: any) => {
-    const id = Math.random().toString(36).substr(2, 9)
-    let newElement: CanvasElement = {
+  const extractProjectImages = useCallback((content: string) => {
+    if (!content || !content.trim().startsWith('[')) return []
+    try {
+      const blocks = JSON.parse(content)
+      const urls: string[] = []
+      blocks.forEach((b: any) => {
+        if (b.type === 'vertical-image' || b.type === 'swipe-image') {
+          const data = b.content
+          if (Array.isArray(data)) {
+            data.forEach(item => {
+              if (typeof item === 'string') urls.push(item)
+              else if (item.url) urls.push(item.url)
+            })
+          } else if (data.urls && Array.isArray(data.urls)) {
+            urls.push(...data.urls)
+          } else if (data.url) {
+            urls.push(data.url)
+          }
+        }
+      })
+      return Array.from(new Set(urls))
+    } catch (e) {
+      return []
+    }
+  }, [])
+
+  const addElement = useCallback((type: ElementType, customContent?: any) => {
+    // Math.random is used here inside an event handler context (indirectly), 
+    // but we use useCallback to stabilize the function itself.
+    const id = Math.random().toString(36).substring(2, 9)
+    const maxZ = elements.reduce((max, el) => Math.max(max, el.style.zIndex || 0), 0)
+    const newElement: CanvasElement = {
       id,
       pageId: activePageId,
       type,
-      x: 100,
-      y: 100,
+      x: 300 + Math.random() * 200, 
+      y: 200 + Math.random() * 200,
       w: type === 'text' ? 200 : 300,
       h: type === 'text' ? 50 : 200,
       content: customContent || (type === 'text' ? '내용을 입력하세요' : ''),
       style: {
-        zIndex: elements.length + 1,
+        zIndex: maxZ + 1,
         opacity: 1,
         color: '#1e293b',
         fontSize: 16,
@@ -103,9 +129,13 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
       newElement.w = 500
       newElement.h = 350
     }
-    setElements([...elements, newElement])
+    if (type === 'image' && !customContent) {
+       const allPhotos = Array.from(new Set(userProjects.flatMap(p => extractProjectImages(p.content))))
+       newElement.content = { url: allPhotos[0] || '', thumbnail_url: allPhotos[0] || '' }
+    }
+    setElements(prev => [...prev, newElement])
     setSelectedId(id)
-  }
+  }, [activePageId, elements, userProjects, extractProjectImages])
 
   const updateElement = (id: string, updates: Partial<CanvasElement>) => {
     setElements(prev => prev.map(el => el.id === id ? { ...el, ...updates } : el))
@@ -138,18 +168,6 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
     link.click()
   }
 
-  const onMouseDown = (id: string, e: React.MouseEvent) => {
-    setSelectedId(id)
-    setIsDragging(true)
-    const el = elements.find(el => el.id === id)
-    if (el) {
-      setDragOffset({
-        x: e.clientX / zoom - el.x,
-        y: e.clientY / zoom - el.y
-      })
-    }
-  }
-
   const parseProjectContent = (content: string) => {
     const sections = {
       background: '데이터를 입력해주세요.',
@@ -161,12 +179,25 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
     
     if (!content) return sections
 
-    // Basic heuristic: split by keywords or headers if available
-    const bgMatch = content.match(/(?:Background|배경|동기)[\s:]*([\s\S]*?)(?=(?:Problem|문제|난관|Solution|해결|성과|$))/i)
-    const probMatch = content.match(/(?:Problem|문제|난관|이슈)[\s:]*([\s\S]*?)(?=(?:Solution|해결|성과|Background|배경|$))/i)
-    const solMatch = content.match(/(?:Solution|해결|성과|결과)[\s:]*([\s\S]*?)(?=(?:Background|배경|Problem|문제|$))/i)
-    const periodMatch = content.match(/(?:Period|기간|날짜)[\s:]*([^\n]*)/i)
-    const techMatch = content.match(/(?:Tech|Stack|기술|스택)[\s:]*([^\n]*)/i)
+    let plainText = content
+    if (content.trim().startsWith('[')) {
+      try {
+        const blocks = JSON.parse(content)
+        plainText = blocks
+          .filter((b: any) => b.type === 'text')
+          .map((b: any) => b.content)
+          .join('\n\n')
+          .replace(/<[^>]*>/g, '') 
+      } catch (e) {}
+    } else {
+      plainText = content.replace(/<[^>]*>/g, '') 
+    }
+
+    const bgMatch = plainText.match(/(?:Background|배경|동기)[\s:]*([\s\S]*?)(?=(?:Problem|문제|난관|Solution|해결|성과|$))/i)
+    const probMatch = plainText.match(/(?:Problem|문제|난관|이슈)[\s:]*([\s\S]*?)(?=(?:Solution|해결|성과|Background|배경|$))/i)
+    const solMatch = plainText.match(/(?:Solution|해결|성과|결과)[\s:]*([\s\S]*?)(?=(?:Background|배경|Problem|문제|$))/i)
+    const periodMatch = plainText.match(/(?:Period|기간|날짜)[\s:]*([^\n]*)/i)
+    const techMatch = plainText.match(/(?:Tech|Stack|기술|스택)[\s:]*([^\n]*)/i)
 
     if (bgMatch) sections.background = bgMatch[1].trim()
     if (probMatch) sections.problem = probMatch[1].trim()
@@ -176,12 +207,23 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
       sections.tech = techMatch[1].split(/[,/]/).map(s => s.trim().toUpperCase()).filter(Boolean)
     }
 
-    // If no matches, just use the whole thing for background
     if (!bgMatch && !probMatch && !solMatch) {
-      sections.background = content.substring(0, 300) + (content.length > 300 ? '...' : '')
+      sections.background = plainText.substring(0, 500).trim() + (plainText.length > 500 ? '...' : '')
     }
 
     return sections
+  }
+
+  const onMouseDown = (id: string, e: React.MouseEvent) => {
+    setSelectedId(id)
+    setIsDragging(true)
+    const el = elements.find(el => el.id === id)
+    if (el) {
+      setDragOffset({
+        x: e.clientX / zoom - el.x,
+        y: e.clientY / zoom - el.y
+      })
+    }
   }
 
   useEffect(() => {
@@ -203,7 +245,6 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
         setSelectedId(null)
       }
       
-      // Page Navigation
       if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA' && document.activeElement?.getAttribute('contenteditable') !== 'true') {
         const currentIndex = pages.findIndex(p => p.id === activePageId)
         if (e.key === 'ArrowUp' && currentIndex > 0) {
@@ -236,7 +277,6 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
       return
     }
 
-    // Page 1: Profile & Identity
     newElements.push({
       id: 'profile-page-root',
       pageId: 'page-1',
@@ -246,7 +286,6 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
       style: { zIndex: 1, opacity: 1 }
     })
 
-    // Page 2+: Project Detailed Case Study
     const selectedProjectsData = userProjects.filter(p => selectedProjectIds.includes(p.id))
     selectedProjectsData.forEach((project, idx) => {
       const pageId = `page-${newPages.length + 1}`
@@ -346,7 +385,6 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-[#0a0c10] select-none text-slate-300">
-      {/* Top Bar */}
       <div className="h-14 bg-slate-900/80 backdrop-blur-xl border-b border-white/5 flex items-center justify-between px-6 z-30">
         <div className="flex items-center gap-6">
           <Link href="/" className="text-lg font-black text-white">Make Place.</Link>
@@ -361,7 +399,6 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
       </div>
 
       <div className="flex flex-1 overflow-hidden relative">
-        {/* Left Page Navigator */}
         <div className="w-48 bg-slate-900/50 backdrop-blur-xl border-r border-white/5 flex flex-col z-20 overflow-y-auto custom-scrollbar">
           <div className="p-4 space-y-4">
              {pages.map((p, i) => (
@@ -392,7 +429,6 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
           </div>
         </div>
 
-        {/* Floating Tools */}
         <div className="absolute left-[200px] top-1/2 -translate-y-1/2 flex flex-col gap-3 z-20">
           <div className="bg-slate-900/80 backdrop-blur-2xl border border-white/10 p-2 rounded-2xl shadow-2xl flex flex-col gap-2">
             <button onClick={() => addElement('text')} className="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-emerald-500 rounded-xl transition-all"><TypeIcon className="w-5 h-5" /></button>
@@ -403,13 +439,12 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
           <div className="bg-slate-900/80 backdrop-blur-2xl border border-white/10 p-2 rounded-2xl shadow-2xl max-h-[300px] overflow-y-auto custom-scrollbar flex flex-col gap-2">
             {userProjects.map(p => (
               <button key={p.id} onClick={() => addElement('project', p)} className="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-violet-600 rounded-xl transition-all overflow-hidden">
-                {p.thumbnail_url ? <img src={p.thumbnail_url} className="w-full h-full object-cover" /> : <Package className="w-4 h-4" />}
+                {p.thumbnail_url ? <img src={p.thumbnail_url} alt="" className="w-full h-full object-cover" /> : <Package className="w-4 h-4" />}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Canvas Area */}
         <div className="flex-1 relative overflow-auto flex items-center justify-center bg-[#0a0c10] dashboard-grid pt-10 pb-20">
           <div 
             ref={canvasRef} 
@@ -447,15 +482,24 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                       </div>
                       <div className="flex flex-1 gap-12 overflow-hidden">
                          <div className="w-[35%] flex flex-col gap-8">
-                            <div className="w-48 h-48 rounded-full border-4 border-slate-100 shadow-xl overflow-hidden self-center">
-                               <img src={p.avatar_url || ''} className="w-full h-full object-cover" />
+                            <div 
+                              className="w-48 h-48 rounded-full border-4 border-slate-100 shadow-xl overflow-hidden self-center cursor-pointer relative group"
+                              onClick={() => {
+                                 const allPhotos = Array.from(new Set(userProjects.flatMap(proj => extractProjectImages(proj.content))))
+                                 setIsImagePickerOpen({ elementId: el.id, projectPhotos: allPhotos })
+                              }}
+                            >
+                               <img src={p.avatar_url || ''} alt="" className="w-full h-full object-cover" />
+                               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                  <span className="text-[10px] font-black text-white uppercase tracking-widest bg-white/20 backdrop-blur px-3 py-1.5 rounded-full border border-white/20">Change Photo</span>
+                               </div>
                             </div>
                             <div className="space-y-4">
                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b pb-2">Information</h3>
                                <div className="space-y-2 text-xs font-bold text-slate-700">
                                   <div>Email: {p.email}</div>
                                   {p.work_history?.[0] && <div>Edu/Main: {p.work_history[0].content}</div>}
-                               </div>
+                                </div>
                             </div>
                             <div className="flex-1 overflow-hidden">
                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b pb-2 mb-4">Timeline</h3>
@@ -515,7 +559,6 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                   
                   return (
                     <div className="w-full h-full flex flex-col p-12 bg-white text-slate-900 border border-slate-100" style={{ WebkitPrintColorAdjust: 'exact' } as any}>
-                      {/* Header Area */}
                       <div className="flex-shrink-0 border-b-2 border-slate-900 pb-4 mb-6 flex items-center justify-between">
                         <div>
                           <h2 
@@ -535,12 +578,14 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                         </div>
                       </div>
 
-                      {/* Middle Area */}
                       <div className="flex flex-1 gap-10 min-h-0 mb-8 items-start">
                         <div className="flex-shrink-0 relative group h-full max-h-[350px]" style={{ width: `${mediaWidth}%` }}>
                           <div className="w-full h-full bg-slate-50 rounded-2xl overflow-hidden border border-slate-200 shadow-inner group-hover:ring-2 ring-emerald-500/50 transition-all cursor-pointer"
-                            onClick={() => setIsImagePickerOpen({ elementId: el.id, projectPhotos: p.images || [] })}>
-                            <img src={p.thumbnail_url || (p.images?.[0]) || ''} className="w-full h-full object-cover" style={{ objectPosition: `${p.focus?.x || 50}% ${p.focus?.y || 50}%` }} />
+                            onClick={() => {
+                              const projectImages = extractProjectImages(p.content)
+                              setIsImagePickerOpen({ elementId: el.id, projectPhotos: projectImages })
+                            }}>
+                            <img src={p.thumbnail_url || (p.images?.[0]) || ''} alt="" className="w-full h-full object-cover" style={{ objectPosition: `${p.focus?.x || 50}% ${p.focus?.y || 50}%` }} />
                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                               <span className="text-[10px] font-black text-white bg-white/20 backdrop-blur px-3 py-1.5 rounded-full border border-white/20 uppercase tracking-widest">Select Image</span>
                             </div>
@@ -550,16 +595,16 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                               e.stopPropagation()
                               const startX = e.clientX
                               const startWidth = mediaWidth
-                              const handleMouseMove = (mmE: MouseEvent) => {
+                              const moveHandler = (mmE: MouseEvent) => {
                                 const diff = (mmE.clientX - startX) / zoom / 11.31
                                 updateElement(el.id, { layoutConfig: { mediaWidth: Math.min(80, Math.max(20, startWidth + diff)) } })
                               }
-                              const handleMouseUp = () => {
-                                window.removeEventListener('mousemove', handleMouseMove)
-                                window.removeEventListener('mouseup', handleMouseUp)
+                              const upHandler = () => {
+                                window.removeEventListener('mousemove', moveHandler)
+                                window.removeEventListener('mouseup', upHandler)
                               }
-                              window.addEventListener('mousemove', handleMouseMove)
-                              window.addEventListener('mouseup', handleMouseUp)
+                              window.addEventListener('mousemove', moveHandler)
+                              window.addEventListener('mouseup', upHandler)
                             }}></div>
                         </div>
                         <div className="flex-1 min-w-0 pr-4 flex flex-col h-full">
@@ -575,8 +620,7 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                         </div>
                       </div>
 
-                      {/* Bottom Area (3-Column Grid) */}
-                      <div className="flex-shrink-0 grid grid-cols-3 gap-6 h-[180px]">
+                      <div className="flex-shrink-0 grid grid-cols-3 gap-6 h-[180px] mt-auto">
                         {[
                           { label: 'BACKGROUND', content: sections.background },
                           { label: 'PROBLEM', content: sections.problem },
@@ -594,7 +638,8 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                   )
                 })()}
 
-                {el.type === 'text' && <div contentEditable onBlur={(e) => updateElement(el.id, { content: e.currentTarget.textContent })} className="w-full h-full p-2 outline-none" style={{ fontSize: el.style.fontSize, fontFamily: el.style.fontFamily, color: el.style.color, textAlign: el.style.textAlign }}>{el.content}</div>}
+                {el.type === 'text' && <div contentEditable suppressContentEditableWarning onBlur={(e) => updateElement(el.id, { content: e.currentTarget.textContent })} className="w-full h-full p-2 outline-none" style={{ fontSize: el.style.fontSize, fontFamily: el.style.fontFamily, color: el.style.color, textAlign: el.style.textAlign }}>{el.content}</div>}
+                
                 {el.type === 'image' && (
                   <div 
                     className="w-full h-full relative group cursor-pointer" 
@@ -605,12 +650,13 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                         boxShadow: el.id === 'profile-img' ? '0 20px 50px rgba(0,0,0,0.15)' : 'none'
                     }}
                     onClick={() => {
-                        const allProjectImages = Array.from(new Set(userProjects.flatMap(p => p.images || [])))
-                        setIsImagePickerOpen({ elementId: el.id, projectPhotos: allProjectImages })
+                        const allPhotos = Array.from(new Set(userProjects.flatMap(proj => extractProjectImages(proj.content))))
+                        setIsImagePickerOpen({ elementId: el.id, projectPhotos: allPhotos })
                     }}
                   >
                     <img 
                       src={el.content.url} 
+                      alt=""
                       className="w-full h-full object-cover" 
                       style={{ objectPosition: `${el.content.focus?.x || 50}% ${el.content.focus?.y || 50}%` }}
                     />
@@ -619,6 +665,7 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                     </div>
                   </div>
                 )}
+                
                 {el.type === 'shape' && (
                   <div 
                     className="w-full h-full" 
@@ -630,18 +677,20 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                     }}
                   ></div>
                 )}
+
                 {el.type === 'project' && (
                   <div className="w-full h-full flex flex-col bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-lg group">
                     <div 
                       className="h-40 bg-slate-50 flex items-center justify-center relative cursor-pointer"
                       onClick={() => setIsImagePickerOpen({ 
                         elementId: el.id, 
-                        projectPhotos: el.content.images || [] 
+                        projectPhotos: extractProjectImages(el.content.content)
                       })}
                     >
                        {el.content.thumbnail_url ? (
                          <img 
                            src={el.content.thumbnail_url} 
+                           alt=""
                            className="w-full h-full object-cover" 
                            style={{ objectPosition: `${el.content.focus?.x || 50}% ${el.content.focus?.y || 50}%` }}
                          />
@@ -661,14 +710,12 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
           </div>
         </div>
 
-        {/* Zoom Controls */}
         <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900/80 backdrop-blur-3xl px-8 py-4 rounded-full flex items-center gap-6 border border-white/10 shadow-2xl z-30">
           <button onClick={() => setZoom(Math.max(0.1, zoom - 0.1))} className="text-slate-500 hover:text-white"><Minus className="w-4 h-4" /></button>
           <span className="text-xs font-bold text-white tabular-nums">{Math.round(zoom * 100)}%</span>
           <button onClick={() => setZoom(Math.min(2, zoom + 0.1))} className="text-slate-500 hover:text-white"><Plus className="w-4 h-4" /></button>
         </div>
 
-        {/* Right Panel */}
         <div className="w-80 bg-slate-900/80 backdrop-blur-2xl border-l border-white/5 flex flex-col z-20 shadow-2xl">
           {selectedElement ? (
             <div className="p-8 space-y-8">
@@ -681,6 +728,7 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                     <label className="text-[10px] font-black text-slate-500">Opacity</label>
                     <input type="range" min="0" max="1" step="0.1" value={selectedElement.style.opacity} onChange={(e) => updateStyle(selectedId!, { opacity: parseFloat(e.target.value) })} className="w-full" />
                  </div>
+                 
                  {selectedElement.type === 'project_detail_page' && (
                    <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                       <div className="space-y-2">
@@ -712,6 +760,34 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                          <textarea value={selectedElement.content.overrides?.solution || parseProjectContent(selectedElement.content.content).solution} 
                            onChange={(e) => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: { ...(selectedElement.content.overrides || {}), solution: e.target.value } } })} 
                            className="w-full h-24 bg-slate-800 text-[10px] p-2 rounded-lg text-white resize-none" />
+                      </div>
+                      
+                      <div className="pt-4 flex flex-col gap-2">
+                        <button 
+                          onClick={() => {
+                            const pageRoot = elements.find(er => er.pageId === activePageId && (er.type === 'project_detail_page' || er.type === 'profile_page'))
+                            if (pageRoot) {
+                              let allPhotos = []
+                              if (pageRoot.type === 'project_detail_page') {
+                                 allPhotos = extractProjectImages(pageRoot.content.content)
+                              } else {
+                                 allPhotos = Array.from(new Set(userProjects.flatMap(proj => extractProjectImages(proj.content))))
+                              }
+                              addElement('image', { url: allPhotos[0] || '', thumbnail_url: allPhotos[0] || '' })
+                            } else {
+                              addElement('image')
+                            }
+                          }}
+                          className="w-full py-2 bg-emerald-500/10 text-emerald-500 rounded-lg text-[10px] font-black uppercase tracking-widest border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all text-center"
+                        >
+                           + Add Image to Slide
+                        </button>
+                        <button 
+                          onClick={() => updateElement(selectedId!, { content: { ...selectedElement.content, overrides: {} } })} 
+                          className="w-full py-2 bg-slate-800 text-slate-400 rounded-lg text-[10px] font-black uppercase tracking-widest border border-white/5 hover:text-white transition-all text-center"
+                        >
+                           Reset to Auto-Parse
+                        </button>
                       </div>
                    </div>
                  )}
@@ -760,7 +836,6 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
 
       {renderWizard()}
       
-      {/* Image Picker Modal */}
       {isImagePickerOpen && (
         <div className="fixed inset-0 z-[110] bg-slate-950/80 backdrop-blur-xl flex items-center justify-center p-6">
           <div className="w-full max-w-xl bg-slate-900 border border-white/10 rounded-[32px] overflow-hidden">
@@ -773,15 +848,22 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                 <button 
                   key={i} 
                   onClick={() => {
-                    updateElement(isImagePickerOpen.elementId, { 
-                      content: { ...elements.find(el => el.id === isImagePickerOpen.elementId)?.content, url: url, thumbnail_url: url } 
-                    })
+                    const el = elements.find(e => e.id === isImagePickerOpen.elementId)
+                    if (el?.type === 'profile_page') {
+                      updateElement(isImagePickerOpen.elementId, { 
+                        content: { ...el.content, profile: { ...el.content.profile, avatar_url: url } } 
+                      })
+                    } else {
+                      updateElement(isImagePickerOpen.elementId, { 
+                        content: { ...elements.find(e => e.id === isImagePickerOpen.elementId)?.content, url: url, thumbnail_url: url } 
+                      })
+                    }
                     setIsImagePickerOpen(null)
                     setFocusingPhoto({ elementId: isImagePickerOpen.elementId, imageUrl: url, focus: { x: 50, y: 50 } })
                   }}
                   className="aspect-video rounded-2xl overflow-hidden border-2 border-transparent hover:border-emerald-500 transition-all"
                 >
-                  <img src={url} className="w-full h-full object-cover" />
+                  <img src={url} alt="" className="w-full h-full object-cover" />
                 </button>
               ))}
               {isImagePickerOpen.projectPhotos.length === 0 && <div className="col-span-2 py-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">No images available</div>}
@@ -790,7 +872,6 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
         </div>
       )}
 
-      {/* Photo Focus Tool */}
       {focusingPhoto && (
         <div className="fixed inset-0 z-[120] bg-slate-950/90 backdrop-blur-3xl flex items-center justify-center p-6">
           <div className="w-full max-w-2xl flex flex-col items-center gap-8">
@@ -808,7 +889,7 @@ export function PortfolioBuilder({ profile, userProjects }: { profile: any; user
                 setFocusingPhoto({ ...focusingPhoto, focus: { x, y } })
               }}
             >
-              <img src={focusingPhoto.imageUrl} className="max-w-full max-h-[60vh] object-contain" />
+              <img src={focusingPhoto.imageUrl} alt="" className="max-w-full max-h-[60vh] object-contain" />
               <div 
                 className="absolute w-12 h-12 border-2 border-emerald-500 rounded-full shadow-[0_0_0_9999px_rgba(0,0,0,0.4)] pointer-events-none transition-all duration-300 flex items-center justify-center"
                 style={{ left: `${focusingPhoto.focus.x}%`, top: `${focusingPhoto.focus.y}%`, transform: 'translate(-50%, -50%)' }}

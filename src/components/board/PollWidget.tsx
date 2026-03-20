@@ -30,10 +30,6 @@ export function PollWidget({ postId, blockId, poll }: PollWidgetProps) {
   const isClosed = poll.endDate ? new Date(poll.endDate) < new Date() : false
   const totalVotes = votes.length
 
-  useEffect(() => {
-    fetchVotes()
-  }, [postId, blockId])
-
   async function fetchVotes() {
     setIsLoading(true)
     const { data: voteData } = await supabase
@@ -52,6 +48,10 @@ export function PollWidget({ postId, blockId, poll }: PollWidgetProps) {
     }
     setIsLoading(false)
   }
+
+  useEffect(() => {
+    fetchVotes()
+  }, [postId, blockId])
 
   async function handleVote(optionId: string) {
     // Lock vote if closed, currently voting, or already voted
